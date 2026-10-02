@@ -1,0 +1,20 @@
+{
+  "name": "Album Poster",
+  "description": "A minimalist album poster: paper, a flat cover, a big condensed title, the lyrics set like a tracklist and swatches from the art.",
+  "author": "Built-in",
+  "params": [
+    { "key": "paper", "type": "color", "label": "Paper", "default": "auto:paper" },
+    { "key": "ink", "type": "color", "label": "Ink", "default": "#1C1C1C" },
+    { "key": "titleFont", "type": "font", "label": "Title font", "default": "SF Pro Variable" },
+    { "key": "titleWidth", "type": "number", "label": "Title width (SF Pro Variable)", "min": 30, "max": 150, "step": 1, "unit": "%", "default": 62 },
+    { "key": "titleWeight", "type": "number", "label": "Title weight", "min": 300, "max": 1000, "step": 10, "default": 760 },
+    { "key": "bodyFont", "type": "font", "label": "Lyrics font", "default": "SF Pro Variable" },
+    { "key": "uppercase", "type": "bool", "label": "Uppercase lyrics", "default": true },
+    { "key": "linesBefore", "type": "int", "label": "Lines before", "min": 0, "max": 6, "default": 2 },
+    { "key": "linesAfter", "type": "int", "label": "Lines after", "min": 0, "max": 14, "default": 7 },
+    { "key": "showSwatches", "type": "bool", "label": "Color swatches", "default": true },
+    { "key": "showHex", "type": "bool", "label": "Hex codes", "default": true },
+    { "key": "coverShadow", "type": "bool", "label": "Cover shadow", "default": false },
+    { "key": "grain", "type": "bool", "label": "Paper grain", "default": true }
+  ]
+}

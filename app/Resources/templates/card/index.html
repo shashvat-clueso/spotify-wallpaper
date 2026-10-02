@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  body { background: #000; font-family: var(--param-font); color: #fff; }
+  .bg {
+    position: absolute; inset: -12%;
+    background: var(--cover-url) center / cover;
+    filter: blur(var(--param-blur)) saturate(1.2);
+  }
+  .tint { position: absolute; inset: 0; background: var(--param-cardColor); opacity: 0.35; }
+  .shade { position: absolute; inset: 0; background: #000; opacity: var(--param-dim); }
+
+  .card {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: var(--param-cardWidth); box-sizing: border-box;
+    padding: 4.5vmin 4.5vmin 3.4vmin;
+    background: var(--param-cardColor);
+    border-radius: 3vmin;
+    box-shadow: 0 3vmin 9vmin rgba(0, 0, 0, 0.35);
+  }
+  .card[data-position="left"] { left: 8vw; transform: translateY(-50%); }
+  .card[data-position="right"] { left: auto; right: 8vw; transform: translateY(-50%); }
+
+  header { display: flex; align-items: center; gap: 2vmin; margin-bottom: 3.6vmin; }
+  header img { width: 6.2vmin; height: 6.2vmin; border-radius: 0.6vmin; object-fit: cover; }
+  .meta { min-width: 0; }
+  .title, .artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .title { font-weight: 700; font-size: 2.2vmin; }
+  .artist { font-weight: 500; font-size: 1.9vmin; opacity: 0.72; margin-top: 0.4vmin; }
+
+  lyrics-block .line { font-weight: 700; font-size: var(--param-lyricSize); line-height: 1.22; }
+  lyrics-block .past { color: rgba(255, 255, 255, 0.55); }
+  lyrics-block .current { color: #fff; }
+  lyrics-block .next { color: rgba(0, 0, 0, 0.53); }
+  .card[data-upcoming="faded"] lyrics-block .next { color: rgba(255, 255, 255, 0.4); }
+  lyrics-block.karaoke { --karaoke-on: #fff; --karaoke-off: rgba(0, 0, 0, 0.45); }
+  .empty { font-weight: 700; font-size: var(--param-lyricSize); opacity: 0.6; }
+
+  footer { margin-top: 4vmin; }
+  progress-bar { color: rgba(255, 255, 255, 0.92); background: rgba(255, 255, 255, 0.28); height: 0.45vmin; }
+  .times { display: flex; justify-content: space-between; font-size: 1.5vmin; font-weight: 500; opacity: 0.7; margin-top: 1.2vmin; }
+</style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="tint"></div>
+  <div class="shade"></div>
+  <div class="sw-grain" data-show="params.grain"></div>
+
+  <div class="card" data-attr-data-position="params.position" data-attr-data-upcoming="params.upcomingColor">
+    <header>
+      <img data-src="track.cover" alt="">
+      <div class="meta">
+        <div class="title" data-bind="track.title"></div>
+        <div class="artist" data-bind="track.artist"></div>
+      </div>
+    </header>
+
+    <lyrics-block data-attr-class="params.karaoke|kclass" data-attr-before="params.linesBefore" data-attr-after="params.linesAfter"></lyrics-block>
+    <div class="empty" data-show="!lyrics.hasLyrics">No lyrics found</div>
+
+    <footer data-show="params.showProgress">
+      <progress-bar></progress-bar>
+      <div class="times"><span data-bind="track.elapsed"></span><span data-bind="track.length"></span></div>
+    </footer>
+  </div>
+</body>
+</html>

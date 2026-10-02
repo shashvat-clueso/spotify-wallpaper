@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  body { background: var(--dark); color: #fff; font-family: var(--param-font); }
+  .mesh { position: absolute; inset: -20%; filter: blur(14vmin) saturate(1.25) brightness(var(--param-brightness)); }
+  .mesh i { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; margin: -30vmax 0 0 -30vmax; }
+  .mesh i:nth-child(1) { left: 18%; top: 22%; background: var(--p0); }
+  .mesh i:nth-child(2) { left: 84%; top: 18%; background: var(--vibrant); }
+  .mesh i:nth-child(3) { left: 70%; top: 86%; background: var(--p2); }
+  .mesh i:nth-child(4) { left: 20%; top: 88%; background: var(--p3); }
+  .mesh i:nth-child(5) { left: 50%; top: 50%; background: var(--p1); width: 40vmax; height: 40vmax; margin: -20vmax 0 0 -20vmax; }
+
+  .sw-live.param-drift .mesh i { animation: drift 26s ease-in-out infinite alternate; }
+  .sw-live.param-drift .mesh i:nth-child(2) { animation-duration: 31s; animation-delay: -8s; }
+  .sw-live.param-drift .mesh i:nth-child(3) { animation-duration: 23s; animation-delay: -15s; }
+  .sw-live.param-drift .mesh i:nth-child(4) { animation-duration: 35s; animation-delay: -4s; }
+  .sw-live.param-drift .mesh i:nth-child(5) { animation-duration: 29s; animation-delay: -11s; }
+  @keyframes drift { to { transform: translate(14vmax, -10vmax) scale(1.25); } }
+  lyrics-block.karaoke { --karaoke-on: #fff; --karaoke-off: rgba(255, 255, 255, 0.42); }
+  .layout { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 7vw; gap: 6.5vw; }
+  .left { width: var(--param-coverSize); flex: none; }
+  .cover { width: 100%; aspect-ratio: 1; border-radius: 1.4vmin; object-fit: cover; box-shadow: 0 2vmin 7vmin rgba(0, 0, 0, 0.45); }
+  .title { font-weight: 700; font-size: 3.2vmin; margin-top: 4vmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .artist { font-weight: 500; font-size: 2.4vmin; opacity: 0.62; margin-top: 0.8vmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  progress-bar { margin-top: 3vmin; color: rgba(255, 255, 255, 0.85); background: rgba(255, 255, 255, 0.22); }
+
+  lyrics-block { flex: 1; height: 82vh; max-width: 110vmin; }
+  lyrics-block .line {
+    font-weight: var(--param-weight); font-size: var(--param-lyricSize); line-height: 1.12;
+    margin: 0 0 3vmin; opacity: calc(0.46 * pow(0.72, var(--dist) - 1));
+  }
+  lyrics-block .past { opacity: calc(0.22 * pow(0.6, var(--dist) - 1)); }
+  lyrics-block .current { opacity: 1; }
+  .empty { flex: 1; font-size: 4vmin; font-weight: 600; opacity: 0.45; }
+</style>
+</head>
+<body>
+  <div class="mesh"><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="sw-grain" data-show="params.grain"></div>
+  <div class="layout">
+    <div class="left">
+      <img class="cover" data-src="track.cover" alt="">
+      <div class="title" data-bind="track.title"></div>
+      <div class="artist" data-bind="track.artist"></div>
+      <progress-bar data-show="params.showProgress"></progress-bar>
+    </div>
+    <lyrics-block layout="center" data-attr-class="params.karaoke|kclass" data-attr-before="params.linesBefore" data-attr-after="params.linesAfter"></lyrics-block>
+    <div class="empty" data-show="!lyrics.hasLyrics">No lyrics found</div>
+  </div>
+</body>
+</html>

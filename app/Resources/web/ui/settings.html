@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="settings.css">
+<script src="/runtime/runtime.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">Templates</div>
+    <ul id="templates"></ul>
+    <div class="sidebar-foot">
+      <button id="openFolder" class="link">Open templates folder</button>
+      <button id="reload" class="link">Reload templates</button>
+    </div>
+  </aside>
+
+  <main class="stage">
+    <div class="stage-head">
+      <div>
+        <h1 id="tplName"></h1>
+        <p id="tplDesc"></p>
+      </div>
+      <button id="activate" class="primary">Use as Wallpaper</button>
+    </div>
+    <div class="preview-wrap" id="previewWrap">
+      <div class="preview-frame" id="previewFrame"><iframe id="preview" title="Preview"></iframe></div>
+    </div>
+    <div class="stage-foot" id="nowPlaying"></div>
+  </main>
+
+  <aside class="inspector">
+    <div class="inspector-head">Customize</div>
+    <div id="params"></div>
+    <div class="inspector-foot">
+      <button id="reset">Reset to defaults</button>
+      <button id="editCode">Duplicate &amp; edit code</button>
+    </div>
+  </aside>
+
+  <script src="settings.js"></script>
+</body>
+</html>

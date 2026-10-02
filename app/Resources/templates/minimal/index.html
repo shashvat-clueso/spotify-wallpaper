@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  body {
+    color: #fff;
+    background: var(--param-base);
+  }
+  .glow-layer { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 85% at var(--param-glowX) 78%, var(--param-glow) 0%, transparent 70%); }
+  .sw-live.param-breathe .glow-layer { animation: breathe 9s ease-in-out infinite alternate; }
+  @keyframes breathe { from { opacity: 0.75; transform: scale(1); } to { opacity: 1; transform: scale(1.08); } }
+  .stack {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 0 10vw;
+  }
+  .cover { width: 11vmin; height: 11vmin; border-radius: 0.5vmin; object-fit: cover; box-shadow: 0 1.5vmin 4vmin rgba(0, 0, 0, 0.4); margin-bottom: 9vmin; }
+  .current { font-family: var(--param-font); font-size: var(--param-lyricSize); line-height: 1.3; max-width: 90vmin; }
+  .next { font-family: var(--param-monoFont); font-size: 1.7vmin; opacity: 0.42; margin-top: 2.8vmin; max-width: 90vmin; }
+  wave-form { width: 26vmin; margin-top: 6vmin; color: rgba(255, 255, 255, 0.86); }
+  .foot {
+    position: absolute; left: 0; right: 0; bottom: 7vmin; text-align: center;
+    font-family: var(--param-monoFont); font-size: 1.4vmin; opacity: 0.48; letter-spacing: 0.04em;
+  }
+  .param-lowercase .foot { text-transform: lowercase; }
+  .sw-grain { opacity: 0.14; }
+</style>
+</head>
+<body>
+  <div class="glow-layer"></div>
+  <div class="stack">
+    <img class="cover" data-src="track.cover" data-show="params.showCover" alt="">
+    <div class="current" data-animate data-show="lyrics.hasLyrics" data-bind="lyrics.current|note"></div>
+    <div class="current" data-show="!lyrics.hasLyrics" data-bind="track.title"></div>
+    <div class="next" data-animate data-show="params.showNext" data-bind="lyrics.next1"></div>
+    <wave-form bars="56" data-show="params.showWave"></wave-form>
+  </div>
+  <div class="foot"><span data-bind="track.title"></span> &nbsp;—&nbsp; <span data-bind="track.artist"></span></div>
+  <div class="sw-grain" data-show="params.grain"></div>
+</body>
+</html>

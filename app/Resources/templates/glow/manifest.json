@@ -1,0 +1,91 @@
+{
+  "name": "Glow",
+  "description": "Full-screen lyrics on a soft color gradient made from the cover, Apple Music style.",
+  "author": "Built-in",
+  "params": [
+    {
+      "key": "font",
+      "type": "font",
+      "label": "Font",
+      "default": "SF Pro"
+    },
+    {
+      "key": "weight",
+      "type": "number",
+      "label": "Lyric weight",
+      "min": 300,
+      "max": 900,
+      "step": 100,
+      "default": 800
+    },
+    {
+      "key": "lyricSize",
+      "type": "number",
+      "label": "Lyric size",
+      "min": 3,
+      "max": 9,
+      "step": 0.1,
+      "unit": "vmin",
+      "default": 5.8
+    },
+    {
+      "key": "linesBefore",
+      "type": "int",
+      "label": "Lines before",
+      "min": 0,
+      "max": 4,
+      "default": 2
+    },
+    {
+      "key": "linesAfter",
+      "type": "int",
+      "label": "Lines after",
+      "min": 0,
+      "max": 8,
+      "default": 4
+    },
+    {
+      "key": "coverSize",
+      "type": "number",
+      "label": "Cover size",
+      "min": 20,
+      "max": 60,
+      "step": 1,
+      "unit": "vmin",
+      "default": 46
+    },
+    {
+      "key": "brightness",
+      "type": "number",
+      "label": "Background brightness",
+      "min": 0.2,
+      "max": 1,
+      "step": 0.01,
+      "default": 0.55
+    },
+    {
+      "key": "showProgress",
+      "type": "bool",
+      "label": "Progress bar",
+      "default": true
+    },
+    {
+      "key": "grain",
+      "type": "bool",
+      "label": "Film grain",
+      "default": true
+    },
+    {
+      "key": "karaoke",
+      "type": "bool",
+      "label": "Karaoke fill",
+      "default": true
+    },
+    {
+      "key": "drift",
+      "type": "bool",
+      "label": "Moving background",
+      "default": true
+    }
+  ]
+}

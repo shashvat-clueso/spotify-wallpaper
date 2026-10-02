@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  body { background: var(--param-paper); color: var(--param-ink); }
+  .layout {
+    --cover: min(76vh, 40vw);
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center; gap: 7vmin;
+  }
+  .cover { width: var(--cover); height: var(--cover); object-fit: cover; outline: 1px solid rgba(0, 0, 0, 0.08); }
+  .param-coverShadow .cover { box-shadow: 0 2vmin 5vmin rgba(0, 0, 0, 0.25); }
+
+  .col { width: min(95vmin, 46vw); height: var(--cover); display: flex; flex-direction: column; }
+  fit-text.title {
+    font-family: var(--param-titleFont); font-weight: var(--param-titleWeight); font-stretch: var(--param-titleWidth);
+    text-transform: uppercase; line-height: 0.9; letter-spacing: -0.01em;
+  }
+  .by { font-family: var(--param-bodyFont); font-stretch: 75%; font-weight: 500; font-size: 2.1vmin; margin: 2.6vmin 0 3.2vmin; }
+
+  lyrics-block { flex: 1; min-height: 0; -webkit-mask-image: linear-gradient(to bottom, #000 75%, transparent); }
+  lyrics-block .line {
+    font-family: var(--param-bodyFont); font-stretch: 75%; font-weight: 500;
+    font-size: 2.1vmin; line-height: 1.32; opacity: 0.47;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .param-uppercase lyrics-block .line { text-transform: uppercase; }
+  lyrics-block .current { font-weight: 900; opacity: 1; }
+  .sw-live lyrics-block .lines { transition-duration: 0.5s; }
+  .empty { font-family: var(--param-bodyFont); font-stretch: 75%; font-size: 2.1vmin; opacity: 0.5; flex: 1; }
+
+  swatch-row { margin: 2.4vmin 0 1vmin; }
+  swatch-row .hex { color: var(--param-ink); }
+  .foot {
+    display: flex; justify-content: space-between; margin-top: 2.4vmin;
+    font-family: "SF Var", sans-serif; font-stretch: 75%; font-weight: 700; font-size: 1.6vmin; text-transform: uppercase;
+  }
+  .sw-grain { opacity: 0.12; mix-blend-mode: multiply; }
+</style>
+</head>
+<body>
+  <div class="layout">
+    <img class="cover" data-src="track.cover" alt="">
+    <div class="col">
+      <fit-text class="title" max-lines="2" min="4vmin" max="15vmin" data-bind="track.title"></fit-text>
+      <div class="by">by <span data-bind="track.artist"></span> &nbsp;•&nbsp; <span data-bind="track.album"></span> &nbsp;•&nbsp; <span data-bind="track.length"></span></div>
+
+      <lyrics-block layout="top" data-attr-before="params.linesBefore" data-attr-after="params.linesAfter"></lyrics-block>
+      <div class="empty" data-show="!lyrics.hasLyrics">NO LYRICS FOUND</div>
+
+      <swatch-row count="5" data-show="params.showSwatches" data-attr-labels="params.showHex"></swatch-row>
+      <div class="foot">
+        <span>Now playing &nbsp;<span data-bind="track.elapsed"></span></span>
+        <span>Track length &nbsp;<span data-bind="track.length"></span></span>
+      </div>
+    </div>
+  </div>
+  <div class="sw-grain" data-show="params.grain"></div>
+</body>
+</html>

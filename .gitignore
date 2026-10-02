@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.pyc
+
+# Swift / build output
+app/.build/
+app/build/
+app/.swiftpm/
+*.xcodeproj/

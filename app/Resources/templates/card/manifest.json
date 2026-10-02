@@ -1,0 +1,128 @@
+{
+  "name": "Lyric Card",
+  "description": "A Spotify-style lyric card, colored from the cover, floating over a blurred backdrop.",
+  "author": "Built-in",
+  "params": [
+    {
+      "key": "cardColor",
+      "type": "color",
+      "label": "Card color",
+      "default": "auto:card"
+    },
+    {
+      "key": "font",
+      "type": "font",
+      "label": "Font",
+      "default": "SF Pro"
+    },
+    {
+      "key": "lyricSize",
+      "type": "number",
+      "label": "Lyric size",
+      "min": 2,
+      "max": 7,
+      "step": 0.1,
+      "unit": "vmin",
+      "default": 4
+    },
+    {
+      "key": "cardWidth",
+      "type": "number",
+      "label": "Card width",
+      "min": 40,
+      "max": 95,
+      "step": 1,
+      "unit": "vmin",
+      "default": 66
+    },
+    {
+      "key": "position",
+      "type": "select",
+      "label": "Card position",
+      "default": "center",
+      "options": [
+        {
+          "value": "left",
+          "label": "Left"
+        },
+        {
+          "value": "center",
+          "label": "Center"
+        },
+        {
+          "value": "right",
+          "label": "Right"
+        }
+      ]
+    },
+    {
+      "key": "linesBefore",
+      "type": "int",
+      "label": "Lines before",
+      "min": 0,
+      "max": 4,
+      "default": 1
+    },
+    {
+      "key": "linesAfter",
+      "type": "int",
+      "label": "Lines after",
+      "min": 0,
+      "max": 10,
+      "default": 5
+    },
+    {
+      "key": "upcomingColor",
+      "type": "select",
+      "label": "Upcoming lines",
+      "default": "dark",
+      "options": [
+        {
+          "value": "dark",
+          "label": "Dark (Spotify)"
+        },
+        {
+          "value": "faded",
+          "label": "Faded white"
+        }
+      ]
+    },
+    {
+      "key": "blur",
+      "type": "number",
+      "label": "Background blur",
+      "min": 0,
+      "max": 200,
+      "step": 1,
+      "unit": "px",
+      "default": 90
+    },
+    {
+      "key": "dim",
+      "type": "number",
+      "label": "Background darkness",
+      "min": 0,
+      "max": 0.9,
+      "step": 0.01,
+      "default": 0.45
+    },
+    {
+      "key": "showProgress",
+      "type": "bool",
+      "label": "Progress bar",
+      "default": true
+    },
+    {
+      "key": "grain",
+      "type": "bool",
+      "label": "Film grain",
+      "default": true
+    },
+    {
+      "key": "karaoke",
+      "type": "bool",
+      "label": "Karaoke fill",
+      "default": true
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "name": "Minimal",
+  "description": "Small centered type on a grainy gradient from the cover, with a waveform. Lots of breathing room.",
+  "author": "Built-in",
+  "params": [
+    {
+      "key": "glow",
+      "type": "color",
+      "label": "Glow color",
+      "default": "auto:deep"
+    },
+    {
+      "key": "base",
+      "type": "color",
+      "label": "Background",
+      "default": "#08080A"
+    },
+    {
+      "key": "glowX",
+      "type": "number",
+      "label": "Glow position",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "default": 32
+    },
+    {
+      "key": "font",
+      "type": "font",
+      "label": "Lyric font",
+      "default": "New York"
+    },
+    {
+      "key": "lyricSize",
+      "type": "number",
+      "label": "Lyric size",
+      "min": 1.5,
+      "max": 8,
+      "step": 0.1,
+      "unit": "vmin",
+      "default": 3.6
+    },
+    {
+      "key": "monoFont",
+      "type": "font",
+      "label": "Detail font",
+      "default": "SF Mono"
+    },
+    {
+      "key": "showCover",
+      "type": "bool",
+      "label": "Cover",
+      "default": true
+    },
+    {
+      "key": "showNext",
+      "type": "bool",
+      "label": "Next line",
+      "default": true
+    },
+    {
+      "key": "showWave",
+      "type": "bool",
+      "label": "Waveform",
+      "default": true
+    },
+    {
+      "key": "lowercase",
+      "type": "bool",
+      "label": "Lowercase footer",
+      "default": true
+    },
+    {
+      "key": "grain",
+      "type": "bool",
+      "label": "Film grain",
+      "default": true
+    },
+    {
+      "key": "breathe",
+      "type": "bool",
+      "label": "Breathing glow",
+      "default": true
+    }
+  ]
+}
