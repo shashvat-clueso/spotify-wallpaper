@@ -1,6 +1,13 @@
 import AppKit
 import ServiceManagement
 
+private extension Double {
+    func rounded(toPlaces p: Int) -> Double {
+        let m = pow(10, Double(p))
+        return (self * m).rounded() / m
+    }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let paths = Paths()
@@ -10,6 +17,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var settings: SettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let probe = LyricsProbe.request {
+            Task { await LyricsProbe.run(probe, paths: paths) }
+            return
+        }
         if let dir = Screenshots.outputDir {
             Task { await Screenshots.run(to: dir, engine: engine, store: store, paths: paths) }
             return
@@ -76,6 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         templates.submenu = sub
         menu.addItem(templates)
         add(menu, "Customize…", #selector(openSettings), ",")
+        menu.addItem(lyricsMenu())
 
         let rate = NSMenuItem(title: "Refresh Rate", action: nil, keyEquivalent: "")
         let rates = NSMenu()
@@ -117,6 +129,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func pickRefreshRate(_ sender: NSMenuItem) { engine.refreshRate = sender.tag }
+
+    private func lyricsMenu() -> NSMenuItem {
+        let item = NSMenuItem(title: "Lyrics", action: nil, keyEquivalent: "")
+        let sub = NSMenu()
+        let sources = engine.lyricsSources
+        let info = NSMenuItem(title: engine.track == nil ? "Nothing playing"
+                                : engine.lyricsSourceText.isEmpty ? "No lyrics found" : "From \(engine.lyricsSourceText)",
+                              action: nil, keyEquivalent: "")
+        info.isEnabled = false
+        sub.addItem(info)
+        sub.addItem(.separator())
+
+        let synced = sources.filter(\.synced).count
+        var choices = [("Combined", synced > 1 ? "Combined timing (\(synced) sources)" : "Best available")]
+        choices += sources.map { ($0.name, $0.synced ? $0.name : "\($0.name) (unsynced)") }
+        for (value, title) in choices {
+            let c = NSMenuItem(title: title, action: #selector(pickLyricsSource(_:)), keyEquivalent: "")
+            c.target = self
+            c.representedObject = value
+            c.state = engine.lyricsChoice == value ? .on : .off
+            c.isEnabled = !sources.isEmpty
+            sub.addItem(c)
+        }
+        sub.addItem(.separator())
+
+        let offset = engine.lyricsOffset
+        for (title, delta) in [("Show Lines Earlier (−0.25 s)", -0.25), ("Show Lines Later (+0.25 s)", 0.25)] {
+            let n = NSMenuItem(title: title, action: #selector(nudgeLyrics(_:)), keyEquivalent: "")
+            n.target = self
+            n.representedObject = delta
+            n.isEnabled = !sources.isEmpty
+            sub.addItem(n)
+        }
+        let reset = NSMenuItem(title: offset == 0 ? "Timing: as published" : String(format: "Reset Timing (now %+.2f s)", offset),
+                               action: offset == 0 ? nil : #selector(resetLyricsTiming), keyEquivalent: "")
+        reset.target = self
+        reset.isEnabled = offset != 0
+        sub.addItem(reset)
+        sub.addItem(.separator())
+        let refetch = NSMenuItem(title: "Search Again", action: #selector(refetchLyrics), keyEquivalent: "")
+        refetch.target = self
+        refetch.isEnabled = engine.track != nil
+        sub.addItem(refetch)
+
+        item.submenu = sub
+        return item
+    }
+
+    @objc private func pickLyricsSource(_ sender: NSMenuItem) {
+        if let v = sender.representedObject as? String { engine.lyricsChoice = v }
+    }
+
+    @objc private func nudgeLyrics(_ sender: NSMenuItem) {
+        if let d = sender.representedObject as? Double { engine.lyricsOffset = (engine.lyricsOffset + d).rounded(toPlaces: 2) }
+    }
+
+    @objc private func resetLyricsTiming() { engine.lyricsOffset = 0 }
+
+    @objc private func refetchLyrics() { engine.refetchLyrics() }
 
     @objc private func openSettings() {
         if settings == nil { settings = SettingsWindowController(engine: engine, store: store, paths: paths) }

@@ -13,8 +13,10 @@ with sliders or rewrite completely.
 
 ## Features
 
-- **Synced lyrics** from [LRCLIB](https://lrclib.net). Each line changes on its exact timestamp, with optional
-  karaoke-style fill through the current line.
+- **Synced lyrics from four sources:** [LRCLIB](https://lrclib.net), NetEase Cloud Music, QQ Music and Kugou, searched
+  in parallel. The app matches lines across sources and uses the **median timestamp** for each one, so a single
+  badly timed source gets outvoted, and a source synced to a different version of the song is dropped. Each line
+  changes on its exact timestamp, with optional karaoke-style fill.
 - **Animated:** lyrics scroll and rise in, the waveform moves, gradients drift. You can cap the frame rate to save battery.
 - **Every Space, every monitor.** Each display gets a frame drawn at its own size and aspect ratio (laptop and ultrawide).
 - **The real wallpaper stays in sync.** On every track change the app also sets your actual wallpaper to a still of
@@ -54,6 +56,7 @@ Everything is in the ♪ menu bar icon:
 |---|---|
 | **Template** | Switch between templates |
 | **Customize… (⌘,)** | Gallery, live preview and every setting of each template |
+| **Lyrics** | Which sources were used, or pick one source. Nudge timing earlier or later (remembered per song), or search again |
 | **Refresh Rate** | Display maximum, 60, 30 or 15 fps for the animation. Lyric timing is exact at any rate |
 | **Pause Wallpaper** | Put your normal wallpaper back until you resume |
 | **Open Templates Folder** | Where your own templates live |
@@ -104,7 +107,8 @@ templates folder.
 ## How it works
 
 ```
-Spotify app ──AppleScript, every 0.1s──▶ Engine ──▶ LRCLIB (lyrics, cached) + cover art (colors via k-means)
+Spotify app ──AppleScript, every 0.1s──▶ Engine ──▶ lyrics: LRCLIB + NetEase + QQ Music + Kugou → consensus timing
+                                           │         cover art → colors via k-means
                                            │
                      ┌─────────────────────┴──────────────────────┐
                      ▼                                            ▼
@@ -116,6 +120,10 @@ Spotify app ──AppleScript, every 0.1s──▶ Engine ──▶ LRCLIB (lyri
    lines change on their exact timestamps.
 ```
 
+- Lyrics: each source is searched with the track's title, artist and duration, and results must match all three.
+  Lines from the synced sources are aligned by text similarity. The best-edited source that agrees with the rest
+  provides the text, and every line gets the median time across sources. Sources sharing a catalogue (QQ Music and
+  Kugou) count once. Results are cached per song.
 - Templates are served from a private `sw://` URL scheme, so they load the shared runtime, the cover and system
   fonts without any local server.
 - macOS only sets the wallpaper of the current Space, so the still is re-applied when you switch Spaces. With
@@ -134,6 +142,12 @@ cd app
 ./build.sh release    # universal build + zip for a release
 ```
 
+See what every lyrics source returns for a song, and the combined timing:
+
+```sh
+"app/build/Spotify Wallpaper.app/Contents/MacOS/SpotifyWallpaper" --lyrics "Blinding Lights" "The Weeknd" "After Hours" 200
+```
+
 README screenshots are generated with the bundled sample song:
 
 ```sh
@@ -145,12 +159,13 @@ isn't needed by the app.
 
 ## Privacy
 
-The app only talks to the Spotify app on your Mac, `lrclib.net` (song title, artist, album and duration, to find
-lyrics) and Spotify's image CDN (to download the cover). Nothing else leaves your machine.
+The app only talks to the Spotify app on your Mac, the lyrics sources (`lrclib.net`, `music.163.com`, `y.qq.com`,
+`lyrics.kugou.com`, which receive the song's title, artist, album and duration) and Spotify's image CDN (to
+download the cover). Lyric requests are sent without cookies. Nothing else leaves your machine.
 
 ## Credits
 
-- Lyrics: [LRCLIB](https://lrclib.net), a free, open lyrics database.
+- Lyrics: [LRCLIB](https://lrclib.net) (a free, open lyrics database), NetEase Cloud Music, QQ Music and Kugou.
 - Design inspiration: Spotify lyric cards, minimalist album posters and lyric wallpapers on Pinterest.
 
 Not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB.

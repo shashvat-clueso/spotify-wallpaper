@@ -33,3 +33,28 @@ enum Screenshots {
         NSApp.terminate(nil)
     }
 }
+
+/// Developer tool: `SpotifyWallpaper --lyrics "<title>" "<artist>" "<album>" <seconds>` prints what each lyrics
+/// source found and the combined timing, then quits.
+@MainActor
+enum LyricsProbe {
+    static var request: Track? {
+        let a = CommandLine.arguments
+        guard let i = a.firstIndex(of: "--lyrics"), i + 4 < a.count, let d = Double(a[i + 4]) else { return nil }
+        return Track(id: "probe:" + a[i + 1] + a[i + 2], title: a[i + 1], artist: a[i + 2], album: a[i + 3], artworkURL: "",
+                     duration: d, position: 0, isPlaying: false)
+    }
+
+    static func run(_ track: Track, paths: Paths) async {
+        let found = await LyricsService(paths: paths).candidates(for: track, refresh: true)
+        for c in found {
+            let sample = c.lines.prefix(3).map { String(format: "%.2f %@", $0.t, $0.text) }.joined(separator: " | ")
+            print("\(c.source) \(c.synced ? "synced" : "plain") \(c.lines.count) lines: \(sample)")
+        }
+        for name in LyricsService.sources where !found.contains(where: { $0.source == name }) { print("\(name): nothing") }
+        let (lyrics, used) = LyricsService.resolve(found, choice: "Combined", duration: track.duration)
+        print("COMBINED from [\(used)] \(lyrics.lines.count) lines")
+        for l in lyrics.lines.prefix(6) { print(String(format: "  %6.2f  %@", l.t, l.text)) }
+        exit(0)
+    }
+}

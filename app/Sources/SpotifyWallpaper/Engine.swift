@@ -18,6 +18,9 @@ final class Engine {
     private(set) var track: Track?
     private var pollStamp: Double = 0  // ms since 1970 when `track.position` was read
     private var lyrics = Lyrics.none
+    private var candidates: [LyricCandidate] = []
+    /// Which source(s) the current lyrics came from, for the menu.
+    private(set) var lyricsSourceText = ""
     private var coverData: Data?
     private var colors: [String: Any] = Palette.extract(from: nil)
     private var loadedTrackID: String?
@@ -195,13 +198,57 @@ final class Engine {
 
     private func load(_ t: Track) async {
         async let cover = download(t.artworkURL)
-        async let lyr = lyricsService.fetch(t)
-        let (c, l) = await (cover, lyr)
+        async let found = lyricsService.candidates(for: t)
+        let (c, cs) = await (cover, found)
         coverData = c
         colors = Palette.extract(from: c)
-        lyrics = l
+        candidates = cs
         loadedTrackID = t.id
         if loadingTrackID == t.id { loadingTrackID = nil }
+        applyLyrics()
+    }
+
+    // MARK: lyrics source & timing (chosen per song, remembered)
+
+    /// Sources that have lyrics for the current song, and whether each is synced.
+    var lyricsSources: [(name: String, synced: Bool)] { candidates.map { ($0.source, $0.synced) } }
+
+    /// "Combined" (consensus timing from every synced source) or one source's name.
+    var lyricsChoice: String {
+        get { loadedTrackID.flatMap { UserDefaults.standard.string(forKey: "lyricsChoice." + $0) } ?? "Combined" }
+        set {
+            guard let id = loadedTrackID else { return }
+            UserDefaults.standard.set(newValue, forKey: "lyricsChoice." + id)
+            applyLyrics()
+        }
+    }
+
+    /// Seconds added to every timestamp: positive shows lines later, negative earlier.
+    var lyricsOffset: Double {
+        get { loadedTrackID.map { UserDefaults.standard.double(forKey: "lyricsOffset." + $0) } ?? 0 }
+        set {
+            guard let id = loadedTrackID else { return }
+            UserDefaults.standard.set(newValue, forKey: "lyricsOffset." + id)
+            applyLyrics()
+        }
+    }
+
+    func refetchLyrics() {
+        guard let t = track, t.id == loadedTrackID else { return }
+        Task {
+            candidates = await lyricsService.candidates(for: t, refresh: true)
+            applyLyrics()
+        }
+    }
+
+    private func applyLyrics() {
+        var (resolved, source) = LyricsService.resolve(candidates, choice: lyricsChoice, duration: track?.duration ?? 0)
+        let offset = lyricsOffset
+        if offset != 0 { resolved.lines = resolved.lines.map { LyricLine(t: $0.t + offset, text: $0.text) } }
+        lyrics = resolved
+        lyricsSourceText = source
+        liveEpoch += 1
+        stillEpoch += 1
         tick()
     }
 
