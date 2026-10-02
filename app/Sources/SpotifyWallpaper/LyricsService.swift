@@ -69,7 +69,7 @@ final class LyricsService {
 
     private func cacheFile(_ track: Track) -> URL {
         let safe = track.id.replacingOccurrences(of: "[^A-Za-z0-9]", with: "_", options: .regularExpression)
-        return cacheDir.appendingPathComponent(safe + ".v2.json")
+        return cacheDir.appendingPathComponent(safe + ".v3.json")
     }
 
     /// nil = request failed; .some(nil) = the source answered but has no lyrics for this track.
@@ -134,9 +134,9 @@ final class LyricsService {
     /// Credit/header lines some sources put at the top ("作词 : …", "Lyrics by …", "Title - Artist").
     private static func isCredit(_ line: LyricLine, track: Track) -> Bool {
         let text = line.text
-        if text.range(of: #"^\s*(作词|作曲|编曲|制作|制作人|混音|母带|和声|吉他|贝斯|鼓|录音|监制|出品|词|曲|演唱|原唱|OP|SP)\s*[:：]"#,
+        if text.range(of: #"^\s*(作词|作詞|作曲|编曲|編曲|制作|製作|制作人|製作人|混音|母带|和声|吉他|贝斯|鼓|录音|錄音|监制|監製|出品|词|詞|曲|演唱|原唱|歌|OP|SP|작사|작곡|편곡|노래)\s*[:：]"#,
                       options: .regularExpression) != nil { return true }
-        if text.range(of: #"^\s*(lyrics|written|composed|produced|composer|lyricist|arranger)\s*(by)?\s*[:：]"#,
+        if text.range(of: #"^\s*(lyrics|written|composed|produced|producer|composer|lyricist|arranger|music|vocals?|mixed|mastered)\s*(by)?\s*[:：]"#,
                       options: [.regularExpression, .caseInsensitive]) != nil { return true }
         if line.t < 15 {
             let n = Match.normalize(text)
@@ -213,8 +213,23 @@ enum Match {
         return 2 * Double(hits) / Double(x.count + y.count - 2)
     }
 
-    /// How well a search hit matches the track; nil if it's clearly a different song.
+    /// Words marking a different recording. These must match both ways: a remix only pairs with remixes, and the
+    /// original only with originals.
+    private static let versionWords = ["remix", "live", "acoustic", "cover", "instrumental", "karaoke", "sped up", "slowed",
+                                       "reverb", "nightcore", "demo", "english", "spanish", "portuguese", "korean", "japanese",
+                                       "chinese", "伴奏", "现场", "翻唱"]
+    /// Minor labels sources often leave out: only rejected when the hit has one the Spotify title doesn't.
+    private static let minorWords = ["version", "ver.", "edit", "mix", "dj"]
+
+    private static func marks(_ title: String, _ words: [String]) -> Set<String> {
+        let t = " " + title.lowercased().replacingOccurrences(of: #"[^\p{L}\p{N}.]+"#, with: " ", options: .regularExpression) + " "
+        return Set(words.filter { t.contains(" \($0) ") || (!$0.allSatisfy(\.isASCII) && t.contains($0)) })
+    }
+
+    /// How well a search hit matches the track; nil if it's clearly a different song or another version of it.
     static func score(title: String, artist: String, duration: Double?, for track: Track) -> Double? {
+        guard marks(title, versionWords) == marks(track.title, versionWords),
+              marks(title, minorWords).isSubset(of: marks(track.title, minorWords)) else { return nil }
         let t = max(similarity(title, track.title), similarity(cleanTitle(title), cleanTitle(track.title)))
         let a = similarity(artist, track.artist)
         let artistOK = a > 0.5 || normalize(artist).contains(normalize(track.artist).components(separatedBy: " ").first ?? "")
@@ -241,8 +256,13 @@ enum Consensus {
         var deviation = [[Double]](repeating: [Double](repeating: 0, count: candidates.count), count: candidates.count)
         for i in candidates.indices {
             for j in candidates.indices where j != i {
+                // the same song needs a good share of lines to match, not just a shared chorus (measured: another
+                // version ~10-20%, the same song in another script ~40%, same song and script 75-100%)
                 let pairs = align(candidates[i].lines, candidates[j].lines)
-                deviation[i][j] = pairs.count >= 3 ? median(pairs.map { abs($0.1 - $0.0) }) : 99
+                let textLines = [candidates[i].lines, candidates[j].lines]
+                    .map { $0.filter { Match.normalize($0.text).count >= 3 }.count }.min()!
+                let coverage = Double(pairs.count) / Double(max(1, textLines))
+                deviation[i][j] = pairs.count >= 3 && coverage >= 0.3 ? median(pairs.map { abs($0.1 - $0.0) }) : 99
             }
         }
         // the reference is the source closest to everyone else; sources far from it (another version, bad sync) drop out

@@ -19,6 +19,9 @@ html, body {
 
 lyrics-block, fit-text, swatch-row, progress-bar { display: block; }
 
+/* Each line/value takes its own direction, so Arabic and Hebrew lyrics flow right-to-left. */
+lyrics-block .line, [data-bind], fit-text { unicode-bidi: plaintext; }
+
 /* lyrics-block: layout="flow" grows with its lines; "center"/"top" scroll inside a fixed height */
 lyrics-block[data-layout="flow"] .line.out { display: none; }
 lyrics-block:not([data-layout="flow"]) { position: relative; overflow: hidden; }
