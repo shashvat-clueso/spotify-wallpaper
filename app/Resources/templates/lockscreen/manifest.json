@@ -1,0 +1,15 @@
+{
+  "name": "Lock Screen",
+  "description": "A big live clock and date, the current lyric, and a now-playing pill.",
+  "author": "Built-in",
+  "params": [
+    { "key": "clock", "type": "select", "label": "Clock", "default": "12", "options": [{ "value": "12", "label": "12-hour" }, { "value": "24", "label": "24-hour" }] },
+    { "key": "clockFont", "type": "font", "label": "Clock font", "default": "SF Pro Variable" },
+    { "key": "clockWidth", "type": "number", "label": "Clock width", "min": 30, "max": 150, "step": 1, "unit": "%", "default": 100 },
+    { "key": "clockWeight", "type": "number", "label": "Clock weight", "min": 100, "max": 1000, "step": 10, "default": 640 },
+    { "key": "clockSize", "type": "number", "label": "Clock size", "min": 10, "max": 40, "step": 0.5, "unit": "vmin", "default": 24 },
+    { "key": "background", "type": "select", "label": "Background", "default": "blur", "options": [{ "value": "blur", "label": "Blurred cover" }, { "value": "gradient", "label": "Cover colors" }] },
+    { "key": "showLyric", "type": "bool", "label": "Current lyric", "default": true },
+    { "key": "grain", "type": "bool", "label": "Film grain", "default": false }
+  ]
+}

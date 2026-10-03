@@ -1,5 +1,8 @@
 # Spotify Wallpaper template guide
 
+Don't want to write code? Use **Template Builder…** in the menu: it makes templates visually, and its **Edit Code**
+button turns any design into an HTML template you can keep editing here.
+
 A template is a folder with two files:
 
 ```
@@ -56,6 +59,10 @@ Use `vmin`/`vw`/`vh` units so it adapts to both laptop and ultrawide screens.
 | `lyrics.hasLyrics` `lyrics.synced` `lyrics.isInstrumental` | flags |
 | `colors.vibrant` `colors.dominant` `colors.card` `colors.deep` `colors.dark` `colors.light` `colors.muted` `colors.paper` `colors.onDominant` | colors from the cover |
 | `colors.palette` | the 6 main cover colors |
+| `time.song` / `time.line` | seconds into the song / into the current line |
+| `time.clock` / `time.clock24` | `10:42 PM` / `22:42` |
+| `time.date` / `time.day` | `Saturday, October 3` / `Saturday` |
+| `time.hour` `time.minute` `time.second` | the current time as numbers |
 | `params.<key>` | your template's settings |
 | `screen.width` `screen.height` `screen.scale` | the screen being drawn |
 
@@ -71,6 +78,12 @@ Use `vmin`/`vw`/`vh` units so it adapts to both laptop and ultrawide screens.
 `--progress`, `--line-progress`, `--cover-url` (use as `background: var(--cover-url) center/cover`),
 `--vibrant` `--dominant` `--card` `--deep` `--dark` `--light` `--muted` `--paper` `--onDominant`,
 `--p0` … `--p5` (palette), and `--param-<key>` for every setting.
+
+Time-based variables, updated every frame **only if your CSS uses them** (each costs a style pass per frame):
+`--song-time`, `--line-time` (seconds), `--time` (seconds since the page loaded), `--hour`, `--minute`, `--second`.
+
+`data-cover-blur="<px>"` (with optional `data-cover-saturate="1.2"`) on an element gives it the cover, blurred once by
+the app, as a background. Use it instead of `filter: blur()` on the cover: it costs nothing per frame.
 
 Classes on `<html>`: `is-playing`, `has-lyrics`, `synced`, `instrumental`, `ultrawide`, and `param-<key>` for every
 true bool setting.
@@ -131,5 +144,29 @@ any installed font's name.
 Wallpaper.on("render", (ctx) => { /* runs after bindings, before layout. ctx has everything above */ });
 Wallpaper.on("layout", (ctx) => { /* runs after fonts/images load and components lay out */ });
 Wallpaper.on("line", (ctx) => { /* live layer: a new lyric line just started */ });
-Wallpaper.on("frame", (ctx) => { /* live layer: every animation frame (keep it cheap) */ });
+Wallpaper.on("tick", (ctx) => { /* live layer: once a second (clocks, counters) */ });
+Wallpaper.on("frame", (ctx) => { /* live layer: every frame; only add this if you really need it */ });
+```
+
+### Animating with time
+
+- Loops: plain CSS `@keyframes` under `.sw-live`. Pause them with the music using
+  `.sw-live:not(.is-playing) .thing { animation-play-state: paused; }`.
+- Follow the song's timeline: give an element a paused animation as long as the song and drive it from the clock:
+  `.thing { animation: grow 1s linear paused; animation-delay: calc(var(--song-time) * -1s / var(--length, 200)); }`
+  (set `--length` from `ctx.track.duration` in a `render` hook).
+- Per line: `data-animate` replays an entrance on every new line; `Wallpaper.on("line")` for anything custom.
+- Clock or countdowns: bind `time.clock` / `time.date`, or update in `Wallpaper.on("tick")`.
+
+### Keeping it fast
+
+The live layer is built to cost almost nothing: lines change on a timer set for their exact timestamp, and the
+progress bar, karaoke sweep, waveform and CSS animations run on the GPU compositor. To keep it that way:
+
+- Animate `transform` and `opacity`. Avoid animating `width`, `height`, `top`/`left`, `filter`, `background` or
+  `box-shadow`; those repaint every frame.
+- Don't blur things live (`filter: blur()` on large elements, `backdrop-filter` over moving content); use
+  `data-cover-blur` for the cover.
+- Avoid `mix-blend-mode` on full-screen layers above moving content.
+- Use `tick` (once a second) instead of `frame` whenever you can.
 ```

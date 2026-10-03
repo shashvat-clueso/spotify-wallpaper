@@ -1,0 +1,13 @@
+{
+  "name": "Typewriter",
+  "description": "Each lyric types itself out in time with the song, with a blinking cursor.",
+  "author": "Built-in",
+  "params": [
+    { "key": "theme", "type": "select", "label": "Paper", "default": "dark", "options": [{ "value": "dark", "label": "Dark" }, { "value": "light", "label": "Light" }, { "value": "cover", "label": "Cover colors" }] },
+    { "key": "font", "type": "font", "label": "Font", "default": "American Typewriter" },
+    { "key": "size", "type": "number", "label": "Text size", "min": 2.5, "max": 10, "step": 0.1, "unit": "vmin", "default": 5.2 },
+    { "key": "speed", "type": "number", "label": "Typing speed", "min": 0.2, "max": 1, "step": 0.05, "default": 0.6 },
+    { "key": "history", "type": "int", "label": "Previous lines", "min": 0, "max": 4, "default": 2 },
+    { "key": "grain", "type": "bool", "label": "Paper grain", "default": true }
+  ]
+}

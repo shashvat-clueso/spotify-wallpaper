@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var engine = Engine(store: store, paths: paths)
     private var statusItem: NSStatusItem!
     private var settings: SettingsWindowController?
+    private var builder: BuilderWindowController?
     private let updater = Updater()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -34,8 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         statusItem.menu = menu
 
-        engine.onStateChange = { [weak self] in self?.settings?.pushState() }
-        engine.onClock = { [weak self] clock in self?.settings?.pushClock(clock) }
+        engine.onStateChange = { [weak self] in self?.settings?.pushState(); self?.builder?.pushState() }
+        engine.onClock = { [weak self] clock in self?.settings?.pushClock(clock); self?.builder?.pushClock(clock) }
         engine.onTemplateFilesChanged = { [weak self] in self?.settings?.templateFilesChanged() }
         engine.start()
         updater.start()
@@ -89,6 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         templates.submenu = sub
         menu.addItem(templates)
         add(menu, "Customize…", #selector(openSettings), ",")
+        add(menu, "Template Builder…", #selector(newBuilderTemplate), "")
         menu.addItem(lyricsMenu())
 
         let rate = NSMenuItem(title: "Refresh Rate", action: nil, keyEquivalent: "")
@@ -205,8 +207,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func refetchLyrics() { engine.refetchLyrics() }
 
     @objc private func openSettings() {
-        if settings == nil { settings = SettingsWindowController(engine: engine, store: store, paths: paths) }
+        if settings == nil {
+            settings = SettingsWindowController(engine: engine, store: store, paths: paths)
+            settings?.onOpenBuilder = { [weak self] id in self?.openBuilder(id) }
+        }
         settings?.show()
+    }
+
+    @objc private func newBuilderTemplate() { openBuilder(nil) }
+
+    /// Opens the Template Builder on a Builder template, or on a new design when `id` is nil.
+    func openBuilder(_ id: String?) {
+        if let b = builder, b.window?.isVisible == true, b.templateID == id, id != nil {
+            b.show()
+            return
+        }
+        builder?.close()
+        builder = BuilderWindowController(engine: engine, store: store, templateID: id)
+        builder?.onSaved = { [weak self] in self?.settings?.sendInit() }
+        builder?.show()
     }
 
     @objc private func togglePause() { engine.paused.toggle() }

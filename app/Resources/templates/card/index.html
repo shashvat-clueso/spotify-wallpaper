@@ -6,11 +6,8 @@
 <script src="/runtime/runtime.js"></script>
 <style>
   body { background: #000; font-family: var(--param-font); color: #fff; }
-  .bg {
-    position: absolute; inset: -12%;
-    background: var(--cover-url) center / cover;
-    filter: blur(var(--param-blur)) saturate(1.2);
-  }
+  /* the app blurs the cover once per song (data-cover-blur), so nothing is blurred live */
+  .bg { position: absolute; inset: -12%; background: center / cover no-repeat; }
   .tint { position: absolute; inset: 0; background: var(--param-cardColor); opacity: 0.35; }
   .shade { position: absolute; inset: 0; background: #000; opacity: var(--param-dim); }
 
@@ -47,7 +44,7 @@
 </style>
 </head>
 <body>
-  <div class="bg"></div>
+  <div class="bg" data-cover-blur="params.blur" data-cover-saturate="1.2"></div>
   <div class="tint"></div>
   <div class="shade"></div>
   <div class="sw-grain" data-show="params.grain"></div>

@@ -6,13 +6,15 @@
 <script src="/runtime/runtime.js"></script>
 <style>
   body { background: var(--dark); color: #fff; font-family: var(--param-font); }
-  .mesh { position: absolute; inset: -20%; filter: blur(14vmin) saturate(1.25) brightness(var(--param-brightness)); }
-  .mesh i { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; margin: -30vmax 0 0 -30vmax; }
-  .mesh i:nth-child(1) { left: 18%; top: 22%; background: var(--p0); }
-  .mesh i:nth-child(2) { left: 84%; top: 18%; background: var(--vibrant); }
-  .mesh i:nth-child(3) { left: 70%; top: 86%; background: var(--p2); }
-  .mesh i:nth-child(4) { left: 20%; top: 88%; background: var(--p3); }
-  .mesh i:nth-child(5) { left: 50%; top: 50%; background: var(--p1); width: 40vmax; height: 40vmax; margin: -20vmax 0 0 -20vmax; }
+  /* soft blobs are radial gradients, not a live blur, so moving them is nearly free */
+  .mesh { position: absolute; inset: -20%; }
+  .mesh i { position: absolute; width: 95vmax; height: 95vmax; border-radius: 50%; margin: -47.5vmax 0 0 -47.5vmax; will-change: transform; }
+  .mesh-dim { position: absolute; inset: 0; background: #000; opacity: calc(1 - var(--param-brightness)); }
+  .mesh i:nth-child(1) { left: 18%; top: 22%; background: radial-gradient(closest-side, var(--p0), transparent); }
+  .mesh i:nth-child(2) { left: 84%; top: 18%; background: radial-gradient(closest-side, var(--vibrant), transparent); }
+  .mesh i:nth-child(3) { left: 70%; top: 86%; background: radial-gradient(closest-side, var(--p2), transparent); }
+  .mesh i:nth-child(4) { left: 20%; top: 88%; background: radial-gradient(closest-side, var(--p3), transparent); }
+  .mesh i:nth-child(5) { left: 50%; top: 50%; background: radial-gradient(closest-side, var(--p1), transparent); width: 65vmax; height: 65vmax; margin: -32.5vmax 0 0 -32.5vmax; }
 
   .sw-live.param-drift .mesh i { animation: drift 26s ease-in-out infinite alternate; }
   .sw-live.param-drift .mesh i:nth-child(2) { animation-duration: 31s; animation-delay: -8s; }
@@ -40,6 +42,7 @@
 </head>
 <body>
   <div class="mesh"><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="mesh-dim"></div>
   <div class="sw-grain" data-show="params.grain"></div>
   <div class="layout">
     <div class="left">

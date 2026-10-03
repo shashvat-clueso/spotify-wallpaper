@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="builder.css">
+<script src="/runtime/runtime.js"></script>
+</head>
+<body>
+  <header class="topbar" id="topbar">
+    <span class="crumb">Templates /</span>
+    <input id="name" class="name-input" value="My Template" spellcheck="false" aria-label="Template name">
+    <span class="spacer"></span>
+    <div class="seg screens" id="screens" role="group" aria-label="Preview screen"></div>
+    <span class="spacer"></span>
+    <button class="icon-btn" id="undo" title="Undo (⌘Z)"></button>
+    <button class="icon-btn" id="redo" title="Redo (⇧⌘Z)"></button>
+    <span class="divider"></span>
+    <button class="btn ghost" id="code" title="Turn this design into an HTML/CSS template and open it in your code editor"></button>
+    <span class="status" id="status"></span>
+    <button class="btn" id="save">Save</button>
+    <button class="btn primary" id="use">Use as Wallpaper</button>
+  </header>
+
+  <div class="workspace">
+    <aside class="panel left">
+      <div class="panel-head">Layers<span class="spacer"></span><button class="icon-btn" id="addImageHead" title="Add image"></button></div>
+      <div class="scroll" id="layers"></div>
+    </aside>
+
+    <main class="stage" id="stage">
+      <div class="frame-label" id="frameLabel"></div>
+      <div class="frame" id="frame">
+        <iframe id="canvas" src="/runtime/builder-preview.html" title="Canvas"></iframe>
+        <div class="overlay" id="overlay"></div>
+      </div>
+      <div class="toolbar" id="toolbar"></div>
+    </main>
+
+    <aside class="panel right">
+      <div class="panel-head" id="inspTitle">Design</div>
+      <div class="scroll" id="inspector"></div>
+    </aside>
+  </div>
+
+  <div class="menu" id="menu" hidden></div>
+  <div class="toast" id="toast"></div>
+  <input type="file" id="file" accept="image/*" hidden>
+
+  <div class="starters" id="starters" hidden>
+    <div class="starters-card">
+      <h2>New template</h2>
+      <p>Start from a layout. Everything can be changed afterwards.</p>
+      <div class="starter-grid" id="starterGrid"></div>
+    </div>
+  </div>
+
+  <script src="builder-ui.js"></script>
+</body>
+</html>

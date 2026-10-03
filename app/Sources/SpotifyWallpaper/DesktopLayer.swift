@@ -31,6 +31,16 @@ final class DesktopLayer: NSObject, WKNavigationDelegate {
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = self
         window.contentView = webView
+        // when windows cover the whole desktop, stop every animation until it's visible again
+        NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.occlusionChanged() }
+        }
+    }
+
+    private func occlusionChanged() {
+        guard loaded, visible else { return }
+        let hidden = !window.occlusionState.contains(.visible)
+        webView.evaluateJavaScript("window.__sw && __sw.pause(\(hidden))")
     }
 
     func load(_ newURL: URL) {
@@ -82,4 +92,5 @@ final class DesktopLayer: NSObject, WKNavigationDelegate {
     }
 
     func close() { window.close() }
+
 }

@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  :root { --tw-paper: #111; --tw-ink: #f2efe8; }
+  .theme-light { --tw-paper: #efe9dd; --tw-ink: #1d1b18; }
+  .theme-cover { --tw-paper: var(--dark); --tw-ink: var(--light); }
+  body { background: var(--tw-paper); color: var(--tw-ink); font-family: var(--param-font); }
+  .page { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 0 14vw; }
+  .history .h { font-size: calc(var(--param-size) * 0.55); opacity: .32; margin-bottom: 1.4vmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .typed { font-size: var(--param-size); line-height: 1.3; min-height: 1.3em; margin-top: 2vmin; }
+  .caret { display: inline-block; width: 0.08em; height: 1em; margin-left: 0.06em; background: currentColor; vertical-align: -0.12em; }
+  .sw-live .caret { animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .meta { position: absolute; left: 14vw; bottom: 8vh; font-size: 1.6vmin; letter-spacing: .08em; text-transform: uppercase; opacity: .5; }
+  .sw-grain { opacity: .07; }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="history" id="history"></div>
+    <div class="typed"><span id="typed"></span><span class="caret"></span></div>
+  </div>
+  <div class="meta"><span data-bind="track.title"></span> — <span data-bind="track.artist"></span></div>
+  <div class="sw-grain" data-show="params.grain"></div>
+  <script>
+    const typed = document.getElementById("typed"), history = document.getElementById("history");
+    // Rebuild the history and pick the theme whenever the line or settings change.
+    Wallpaper.on("render", (ctx) => {
+      document.documentElement.className = document.documentElement.className.replace(/\btheme-\w+/g, "") + " theme-" + ctx.params.theme;
+      const n = +ctx.params.history, lines = ctx.lyrics.prev.slice(0, n).filter((l) => l.trim()).reverse();
+      history.innerHTML = lines.map((l) => `<div class="h"></div>`).join("");
+      [...history.children].forEach((el, i) => (el.textContent = lines[i]));
+      if (!document.documentElement.classList.contains("sw-live")) typed.textContent = ctx.lyrics.current || ctx.track.title;
+    });
+    // Type the current line out over the first part of its duration (ctx.time.line = seconds into the line).
+    // A short timer runs only while typing, so nothing ticks between lines.
+    let typing = null;
+    Wallpaper.on("line", (ctx) => {
+      clearInterval(typing);
+      const text = ctx.lyrics.hasLyrics ? ctx.lyrics.current : ctx.track.title;
+      const lines = ctx.lyrics.lines, i = ctx.lyrics.index;
+      const lineLength = i >= 0 && i + 1 < lines.length ? lines[i + 1].t - lines[i].t : 4;
+      const typeFor = Math.max(0.2, Math.min(lineLength * +ctx.params.speed, text.length * 0.09));
+      const started = performance.now() - ctx.time.line * 1000;
+      const step = () => {
+        const shown = Math.floor(text.length * Math.min(1, (performance.now() - started) / 1000 / typeFor));
+        const next = text.slice(0, shown);
+        if (typed.textContent !== next) typed.textContent = next;
+        if (shown >= text.length) clearInterval(typing);
+      };
+      step();
+      typing = setInterval(step, 35);
+    });
+  </script>
+</body>
+</html>

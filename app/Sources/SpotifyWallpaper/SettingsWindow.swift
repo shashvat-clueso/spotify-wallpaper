@@ -3,11 +3,14 @@ import WebKit
 
 /// The Customize window: template gallery, live preview and per-template settings, as a web UI.
 @MainActor
-final class SettingsWindowController: NSWindowController, WKScriptMessageHandler {
+final class SettingsWindowController: NSWindowController, WKScriptMessageHandler, NSWindowDelegate {
     private let engine: Engine
     private let store: TemplateStore
     private let paths: Paths
     private var webView: WKWebView!
+    private var strip: DragStrip!
+    private static let barHeight: CGFloat = 44
+    var onOpenBuilder: ((String?) -> Void)?
 
     init(engine: Engine, store: TemplateStore, paths: Paths) {
         self.engine = engine
@@ -22,6 +25,8 @@ final class SettingsWindowController: NSWindowController, WKScriptMessageHandler
         window.isReleasedWhenClosed = false
         window.center()
         super.init(window: window)
+        window.delegate = self
+        window.titleVisibility = .hidden
 
         let config = engine.makeWebConfiguration()
         config.userContentController.add(self, name: "app")
@@ -30,8 +35,8 @@ final class SettingsWindowController: NSWindowController, WKScriptMessageHandler
         webView.autoresizingMask = [.width, .height]
         container.addSubview(webView)
         // The page fills the (transparent) title bar too and would swallow drags, so put a drag strip over it.
-        let strip = DragStrip(frame: NSRect(x: 0, y: container.bounds.height - DragStrip.height,
-                                            width: container.bounds.width, height: DragStrip.height))
+        strip = DragStrip(frame: NSRect(x: 0, y: container.bounds.height - Self.barHeight,
+                                        width: container.bounds.width, height: Self.barHeight))
         strip.autoresizingMask = [.width, .minYMargin]
         container.addSubview(strip)
         window.contentView = container
@@ -40,10 +45,14 @@ final class SettingsWindowController: NSWindowController, WKScriptMessageHandler
 
     required init?(coder: NSCoder) { fatalError() }
 
+    func windowDidResize(_ notification: Notification) { window?.centerTrafficLights(inBarOfHeight: Self.barHeight) }
+    func windowDidExitFullScreen(_ notification: Notification) { window?.centerTrafficLights(inBarOfHeight: Self.barHeight) }
+
     func show() {
         NSApp.activate(ignoringOtherApps: true)
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
+        window?.centerTrafficLights(inBarOfHeight: Self.barHeight)
     }
 
     func snapshot() async -> NSImage? {
@@ -54,6 +63,9 @@ final class SettingsWindowController: NSWindowController, WKScriptMessageHandler
         guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
         let id = body["id"] as? String ?? ""
         switch type {
+        case "titlebarHoles":
+            let rects = body["rects"] as? [[String: Double]] ?? []
+            strip.holes = rects.map { NSRect(x: $0["x"] ?? 0, y: $0["y"] ?? 0, width: $0["w"] ?? 0, height: $0["h"] ?? 0) }
         case "ready":
             sendInit()
         case "activate":
@@ -80,6 +92,10 @@ final class SettingsWindowController: NSWindowController, WKScriptMessageHandler
             } else {
                 NSWorkspace.shared.open(paths.userTemplates)
             }
+        case "newTemplate":
+            onOpenBuilder?(nil)
+        case "openBuilder":
+            onOpenBuilder?(id)
         case "reload":
             store.reload()
             engine.invalidate()
@@ -124,18 +140,3 @@ final class SettingsWindowController: NSWindowController, WKScriptMessageHandler
     }
 }
 
-/// Invisible title-bar strip: drag to move the window, double-click to zoom (or minimize, per System Settings).
-private final class DragStrip: NSView {
-    static let height: CGFloat = 36
-
-    override var mouseDownCanMoveWindow: Bool { true }
-
-    override func mouseDown(with event: NSEvent) {
-        if event.clickCount == 2 {
-            let action = UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") ?? "Maximize"
-            if action == "Minimize" { window?.performMiniaturize(nil) } else if action != "None" { window?.performZoom(nil) }
-        } else {
-            window?.performDrag(with: event)
-        }
-    }
-}

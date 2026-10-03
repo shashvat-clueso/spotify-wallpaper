@@ -36,7 +36,8 @@ final class Engine {
     private var stillEpoch = 0  // bumped once settings stop changing
     private var editStamp: Date?
     private var stillDebounce: Task<Void, Never>?
-    private var ticks = 0
+    private var latestTrack: Track?
+    private var latestStamp: Double = 0
 
     /// Called when the preview in the Customize window should get new state / a clock tick.
     var onStateChange: (() -> Void)?
@@ -84,8 +85,15 @@ final class Engine {
 
     func start() {
         schemeHandler.cover = { [weak self] in self?.coverData }
-        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.tick() }
+        // Spotify is read on its own thread; each reading lands here
+        spotify.onUpdate = { [weak self] track, stamp in
+            self?.latestTrack = track
+            self?.latestStamp = stamp
+            self?.tick()
+        }
+        spotify.start()
+        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkTemplateEdits() }
         }
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
@@ -134,12 +142,9 @@ final class Engine {
     // MARK: main loop
 
     private func tick() {
-        ticks += 1
-        if ticks % 10 == 0 { checkTemplateEdits() }
-
         let previousID = track?.id
-        track = spotify.poll()
-        pollStamp = Date().timeIntervalSince1970 * 1000
+        track = latestTrack
+        pollStamp = latestStamp
         guard let t = track else {
             hideLayers()
             setter.restore()

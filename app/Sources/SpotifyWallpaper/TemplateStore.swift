@@ -11,8 +11,11 @@ struct WallpaperTemplate {
     var params: [[String: Any]] { manifest["params"] as? [[String: Any]] ?? [] }
     var url: URL { URL(string: "sw://app/template/\(id)/index.html")! }
 
+    /// Made with the Template Builder (has a design.json).
+    var isBuilder: Bool { manifest["builder"] as? Bool ?? false }
+
     var summary: [String: Any] {
-        ["id": id, "name": name, "description": description, "builtin": builtin, "params": params]
+        ["id": id, "name": name, "description": description, "builtin": builtin, "builder": isBuilder, "params": params]
     }
 }
 
@@ -23,7 +26,7 @@ final class TemplateStore {
     private(set) var templates: [WallpaperTemplate] = []
     private let paths: Paths
     private let defaults = UserDefaults.standard
-    private static let builtinOrder = ["card", "poster", "minimal", "glow"]
+    private static let builtinOrder = ["card", "poster", "minimal", "glow", "vinyl", "typewriter", "lockscreen", "visualizer"]
 
     init(paths: Paths) {
         self.paths = paths
@@ -107,6 +110,73 @@ final class TemplateStore {
         defaults.set(saved(id), forKey: "params." + newID)
         reload()
         return newID
+    }
+
+    // MARK: Template Builder
+
+    func design(_ id: String) -> Any? {
+        guard let t = template(id), let data = try? Data(contentsOf: t.dir.appendingPathComponent("design.json")) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data)
+    }
+
+    /// Saves a Builder design, creating the template folder the first time. Returns the template id.
+    func saveDesign(id: String?, name: String, design: Any) -> String? {
+        let fm = FileManager.default
+        var folderID = id.flatMap { template($0)?.builtin == false ? $0 : nil }
+        if folderID == nil {
+            var slug = name.lowercased().replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+            if slug.isEmpty { slug = "my-template" }
+            var candidate = slug, n = 2
+            while template(candidate) != nil || fm.fileExists(atPath: paths.userTemplates.appendingPathComponent(candidate).path) {
+                candidate = "\(slug)-\(n)"; n += 1
+            }
+            folderID = candidate
+        }
+        guard let folderID else { return nil }
+        let dir = paths.userTemplates.appendingPathComponent(folderID)
+        do {
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            let manifest: [String: Any] = ["name": name, "description": "Made with the Template Builder.", "author": NSFullUserName(),
+                                           "builder": true, "params": []]
+            try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
+                .write(to: dir.appendingPathComponent("manifest.json"))
+            try JSONSerialization.data(withJSONObject: design, options: [.prettyPrinted, .sortedKeys])
+                .write(to: dir.appendingPathComponent("design.json"))
+            let page = dir.appendingPathComponent("index.html")
+            try? fm.removeItem(at: page)
+            try fm.copyItem(at: paths.web.appendingPathComponent("runtime/builder-template.html"), to: page)
+        } catch {
+            NSLog("SpotifyWallpaper: couldn't save design: \(error)")
+            return nil
+        }
+        reload()
+        return folderID
+    }
+
+    /// A plain HTML/CSS template (e.g. a Builder design exported to code). Returns the template id.
+    func createCodeTemplate(name: String, html: String) -> String? {
+        let fm = FileManager.default
+        var slug = name.lowercased().replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        if slug.isEmpty { slug = "my-template-code" }
+        var id = slug, n = 2
+        while template(id) != nil || fm.fileExists(atPath: paths.userTemplates.appendingPathComponent(id).path) {
+            id = "\(slug)-\(n)"; n += 1
+        }
+        let dir = paths.userTemplates.appendingPathComponent(id)
+        do {
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            let manifest: [String: Any] = ["name": name, "description": "Exported from the Template Builder. Edit index.html freely.",
+                                           "author": NSFullUserName(), "params": []]
+            try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
+                .write(to: dir.appendingPathComponent("manifest.json"))
+            try html.write(to: dir.appendingPathComponent("index.html"), atomically: true, encoding: .utf8)
+        } catch {
+            return nil
+        }
+        reload()
+        return id
     }
 
     /// Latest modification time across user templates, for live reload while editing code.

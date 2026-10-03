@@ -1,0 +1,16 @@
+{
+  "name": "Vinyl",
+  "description": "A record spinning while the song plays, the cover as its label, with lyrics beside it.",
+  "author": "Built-in",
+  "params": [
+    { "key": "rpm", "type": "select", "label": "Speed", "default": "33", "options": [{ "value": "33", "label": "33⅓ rpm" }, { "value": "45", "label": "45 rpm" }, { "value": "12", "label": "Slow" }] },
+    { "key": "tonearm", "type": "bool", "label": "Tone arm", "default": true },
+    { "key": "recordSize", "type": "number", "label": "Record size", "min": 40, "max": 90, "step": 1, "unit": "vmin", "default": 70 },
+    { "key": "font", "type": "font", "label": "Font", "default": "SF Pro" },
+    { "key": "lyricSize", "type": "number", "label": "Lyric size", "min": 2.5, "max": 8, "step": 0.1, "unit": "vmin", "default": 4.6 },
+    { "key": "karaoke", "type": "bool", "label": "Karaoke fill", "default": true },
+    { "key": "blur", "type": "number", "label": "Background blur", "min": 20, "max": 200, "step": 1, "unit": "px", "default": 110 },
+    { "key": "dim", "type": "number", "label": "Background darkness", "min": 0, "max": 0.9, "step": 0.01, "default": 0.55 },
+    { "key": "grain", "type": "bool", "label": "Film grain", "default": true }
+  ]
+}

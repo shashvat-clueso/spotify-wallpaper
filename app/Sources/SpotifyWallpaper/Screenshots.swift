@@ -30,6 +30,39 @@ enum Screenshots {
         if let image = await settings.snapshot(), let jpeg = jpegData(image, quality: 0.86) {
             try? jpeg.write(to: dir.appendingPathComponent("customize.jpg"))
         }
+        settings.close()
+
+        // Template Builder: the editor with a starter open, and every starter rendered as a real template
+        let builder = BuilderWindowController(engine: engine, store: store, templateID: nil)
+        builder.show()
+        try? await Task.sleep(for: .seconds(3))
+        _ = await builder.evaluate("document.querySelectorAll('.starter')[1].click(); select(B.design.layers[4].id); true")
+        try? await Task.sleep(for: .seconds(3))
+        if let image = await builder.snapshot(), let jpeg = jpegData(image, quality: 0.86) {
+            try? jpeg.write(to: dir.appendingPathComponent("builder.jpg"))
+        }
+        // Edit Code: the canvas turns the open design into a standalone HTML template
+        let exported = await builder.evaluate("""
+            new Promise(r => { addEventListener('message', e => { if (e.data && e.data.type === 'sw:exported') r(e.data.html); });
+              canvas.contentWindow.postMessage({ type: 'sw:export', design: B.design }, '*'); })
+            """)
+        if let html = exported as? String { try? html.write(to: dir.appendingPathComponent("export-test.html"), atomically: true, encoding: .utf8) }
+        let starters = (await builder.evaluate("JSON.stringify(STARTERS.map(s => s.design))") as? String)
+            .flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) } as? [Any] ?? []
+        builder.close()
+        let stillRenderer = ScreenRenderer(size: size, configuration: engine.makeWebConfiguration())
+        for (i, design) in starters.enumerated() {
+            guard let id = store.saveDesign(id: nil, name: "zz builder screenshot \(i)", design: design),
+                  let template = store.template(id) else { continue }
+            var payload = engine.statePayload(for: nil)
+            payload["screen"] = ["width": size.width, "height": size.height, "scale": 2]
+            payload["params"] = [String: Any]()
+            if let image = await stillRenderer.render(url: template.url, payload: payload), let jpeg = jpegData(image, quality: 0.86) {
+                try? jpeg.write(to: dir.appendingPathComponent("builder-starter-\(i).jpg"))
+            }
+            try? FileManager.default.removeItem(at: template.dir)
+        }
+        store.reload()
         NSApp.terminate(nil)
     }
 }

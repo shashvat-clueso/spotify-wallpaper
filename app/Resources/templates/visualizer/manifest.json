@@ -1,0 +1,16 @@
+{
+  "name": "Visualizer",
+  "description": "A bar visualizer in the cover's colors bouncing along, with lyrics fading in line by line.",
+  "author": "Built-in",
+  "params": [
+    { "key": "colorA", "type": "color", "label": "Bars from", "default": "auto:vibrant" },
+    { "key": "colorB", "type": "color", "label": "Bars to", "default": "auto:light" },
+    { "key": "bars", "type": "int", "label": "Bars", "min": 24, "max": 160, "default": 96 },
+    { "key": "energy", "type": "number", "label": "Bounce", "min": 0, "max": 1, "step": 0.05, "default": 0.55 },
+    { "key": "height", "type": "number", "label": "Visualizer height", "min": 10, "max": 60, "step": 1, "unit": "vh", "default": 34 },
+    { "key": "mirror", "type": "bool", "label": "Reflection", "default": true },
+    { "key": "font", "type": "font", "label": "Font", "default": "SF Pro" },
+    { "key": "lyricSize", "type": "number", "label": "Lyric size", "min": 3, "max": 10, "step": 0.1, "unit": "vmin", "default": 6.2 },
+    { "key": "background", "type": "color", "label": "Background", "default": "auto:dark" }
+  ]
+}

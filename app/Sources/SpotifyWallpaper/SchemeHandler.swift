@@ -1,3 +1,4 @@
+import CoreImage
 import WebKit
 
 /// Serves everything the web views load from one origin, sw://app/…
@@ -5,6 +6,7 @@ import WebKit
 ///   /runtime/<file>         the shared template runtime
 ///   /ui/<file>              the Customize window
 ///   /cover/<anything>       the current track's cover art
+///   /coverblur/<px>/<sat>/…  the cover blurred (and saturated) once, so templates never blur it live
 ///   /font/<file>            a font from the system font folders
 @MainActor
 final class SchemeHandler: NSObject, WKURLSchemeHandler {
@@ -34,6 +36,10 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         case "cover":
             data = cover() ?? (try? Data(contentsOf: paths.web.appendingPathComponent("ui/sample-cover.jpg")))
             mime = "image/jpeg"
+        case "coverblur" where parts.count >= 3:
+            let source = cover() ?? (try? Data(contentsOf: paths.web.appendingPathComponent("ui/sample-cover.jpg")))
+            if let source { data = blurredCover(source, radius: Double(parts[1]) ?? 80, saturation: Double(parts[2]) ?? 1) }
+            mime = "image/jpeg"
         case "font" where parts.count == 2:
             for dir in Self.fontDirs where data == nil {
                 data = read(URL(fileURLWithPath: dir), parts[1...])
@@ -52,6 +58,30 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
+
+    private var blurCache: [String: Data] = [:]
+    private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+
+    /// The cover blurred like CSS `blur(<radius>px)` on a ~1900px-wide background, computed at low resolution
+    /// (the result is soft anyway) and cached per song and settings.
+    private func blurredCover(_ data: Data, radius: Double, saturation: Double) -> Data? {
+        let key = "\(data.count)-\(data.prefix(64).hashValue)-\(radius)-\(saturation)"
+        if let hit = blurCache[key] { return hit }
+        guard let image = CIImage(data: data), image.extent.width > 0 else { return nil }
+        let width: CGFloat = 480
+        let scale = width / image.extent.width
+        var out = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        let extent = out.extent
+        let sigma = radius * Double(width) / 1900
+        if sigma > 0.3 { out = out.clampedToExtent().applyingGaussianBlur(sigma: sigma).cropped(to: extent) }
+        if saturation != 1 { out = out.applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: saturation]) }
+        guard let jpeg = ciContext.jpegRepresentation(of: out, colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                                      options: [kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption: 0.9])
+        else { return nil }
+        if blurCache.count > 24 { blurCache.removeAll() }
+        blurCache[key] = jpeg
+        return jpeg
+    }
 
     /// Reads base/parts, refusing anything that escapes base.
     private func read(_ base: URL, _ parts: ArraySlice<String>) -> Data? {

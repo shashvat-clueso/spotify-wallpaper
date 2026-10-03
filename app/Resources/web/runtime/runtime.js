@@ -36,7 +36,14 @@
     autoColors: AUTO_COLORS,
     manifest: null,
     ctx: null,
+    /// Promises the first render waits for (e.g. the Builder renderer building the page from design.json).
+    waits: [],
     on(event, fn) { (listeners[event] = listeners[event] || []).push(fn); },
+    /// Re-apply the current state after the page's DOM was rebuilt.
+    refresh() {
+      if (live) { liveDirty = true; liveUpdate(); }
+      else if (lastPayload) schedule(lastPayload);
+    },
   });
   const emit = (event, ...args) =>
     (listeners[event] || []).forEach((fn) => { try { fn(...args); } catch (e) { console.error(e); } });
@@ -58,13 +65,14 @@
     pct: (v) => Math.round((v || 0) * 100) + "%",
     hex: (v) => String(v ?? "").toUpperCase(),
     kclass: (v) => (v ? "karaoke" : ""),
+    isBlur: (v) => v === "blur",
   };
   function evaluate(expr, ctx) {
     expr = expr.trim();
     let negate = false;
     if (expr.startsWith("!")) { negate = true; expr = expr.slice(1); }
     const [path, ...pipes] = expr.split("|").map((s) => s.trim());
-    let v = get(ctx, path);
+    let v = /^-?[\d.]+$/.test(path) ? +path : get(ctx, path);
     for (const p of pipes) if (PIPES[p]) v = PIPES[p](v);
     return negate ? !v : v;
   }
@@ -79,6 +87,57 @@
     let h = 2166136261;
     for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
     return h >>> 0;
+  }
+
+  // ---------- time ----------
+
+  const pageStart = performance.now();
+  // formatters are expensive to create, so make them once
+  const FMT = {
+    clock: new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" }),
+    date: new Intl.DateTimeFormat([], { weekday: "long", month: "long", day: "numeric" }),
+    day: new Intl.DateTimeFormat([], { weekday: "long" }),
+  };
+  let textCache = { minute: -1 };
+  function timeInfo(song, line) {
+    const d = new Date();
+    const minuteKey = Math.floor(d.getTime() / 60000);
+    if (textCache.minute !== minuteKey) {
+      textCache = {
+        minute: minuteKey,
+        clock: FMT.clock.format(d),
+        clock24: String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"),
+        date: FMT.date.format(d),
+        day: FMT.day.format(d),
+      };
+    }
+    return {
+      song, line,
+      now: (performance.now() - pageStart) / 1000,
+      hour: d.getHours(), minute: d.getMinutes(), second: d.getSeconds() + d.getMilliseconds() / 1000,
+      clock: textCache.clock, clock24: textCache.clock24, date: textCache.date, day: textCache.day,
+    };
+  }
+
+  /** Per-frame CSS variables cost a style pass over the whole page, so only update the ones a template uses. */
+  const FRAME_VARS = ["--progress", "--line-progress", "--song-time", "--line-time", "--time", "--hour", "--minute", "--second"];
+  let usedVars = new Set();
+  function scanUsedVars() {
+    let text = "";
+    for (const sheet of document.styleSheets) {
+      if (sheet.href && sheet.href.includes("/runtime/runtime.css")) continue;
+      try { for (const r of sheet.cssRules) text += r.cssText; } catch (e) {}
+    }
+    // inline styles written by templates (not the root element, where the runtime itself sets every variable)
+    for (const el of document.body.querySelectorAll("[style]")) text += el.getAttribute("style");
+    usedVars = new Set(FRAME_VARS.filter((v) => text.includes(v)));
+  }
+
+  function frameVars(ctx) {
+    const s = document.documentElement.style, t = ctx.time;
+    const values = { "--progress": ctx.track.progress, "--line-progress": ctx.lyrics.lineProgress, "--song-time": t.song,
+      "--line-time": t.line, "--time": t.now, "--hour": t.hour, "--minute": t.minute, "--second": t.second };
+    for (const v of usedVars) s.setProperty(v, values[v]);
   }
 
   // ---------- state → template context ----------
@@ -123,6 +182,7 @@
         isInstrumental: lines.length > 0 && !current.trim(),
       },
       colors,
+      time: timeInfo(t.position || 0, i >= 0 ? (t.position || 0) - lineStart : 0),
       params: resolveParams(payload.params || {}, colors),
       screen: payload.screen || { width: innerWidth, height: innerHeight, scale: devicePixelRatio },
     };
@@ -163,6 +223,13 @@
     for (const el of document.querySelectorAll("[data-bind]")) {
       const raw = evaluate(el.dataset.bind, ctx), v = raw == null ? "" : String(raw);
       if (el.textContent !== v) el.textContent = v;
+    }
+    // data-cover-blur="<px>" (+ optional data-cover-saturate): the cover, blurred once by the app, as a background
+    for (const el of document.querySelectorAll("[data-cover-blur]")) {
+      const r = Math.max(0, Math.round(+evaluate(el.dataset.coverBlur, ctx) || 0));
+      const sat = el.dataset.coverSaturate ? +evaluate(el.dataset.coverSaturate, ctx) || 1 : 1;
+      const url = `url("/coverblur/${r}/${sat}/${encodeURIComponent(ctx.track.id || "none")}.jpg")`;
+      if (el._coverBlur !== url) { el._coverBlur = url; el.style.backgroundImage = url; }
     }
     for (const el of document.querySelectorAll("[data-src]")) {
       const v = evaluate(el.dataset.src, ctx);
@@ -248,35 +315,38 @@
     ).join("");
   }
 
+  // Each bar is .bar > i: the bar's scaleY is its height for the current line (eased by a CSS transition), and
+  // the inner i bobs with a Web Animation that runs on the compositor; no per-frame script.
   function waveForm(el, ctx) {
     const n = +(el.getAttribute("bars") || 56);
     let seed = hash(ctx.track.id + ":" + ctx.lyrics.index);
     const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
     if (el.children.length !== n) {
       el.innerHTML = "";
-      for (let k = 0; k < n; k++) el.appendChild(Object.assign(document.createElement("div"), { className: "bar" }));
-      el._cur = null;
+      for (let k = 0; k < n; k++) {
+        const bar = Object.assign(document.createElement("div"), { className: "bar" });
+        bar.appendChild(document.createElement("i"));
+        el.appendChild(bar);
+      }
+      el._bob = null;
     }
-    el._target = [...el.children].map((_, k) => {
+    [...el.children].forEach((bar, k) => {
       const env = 0.25 + 0.75 * Math.pow(1 - Math.abs(k - n / 2) / (n / 2), 0.6);
-      return Math.max(8, env * (25 + 75 * rnd()));
+      bar.style.transform = `scaleY(${(Math.max(8, env * (25 + 75 * rnd())) / 100).toFixed(3)})`;
     });
-    if (!live || !el._cur) {
-      el._cur = el._target.slice();
-      [...el.children].forEach((b, k) => (b.style.height = el._cur[k] + "%"));
-    }
+    if (live) bobWaves(el, ctx.track.isPlaying);
   }
 
-  function animateWaves(now, playing) {
-    for (const el of document.querySelectorAll("wave-form")) {
-      if (!el._target || !el._cur) continue;
-      const bars = el.children;
-      for (let k = 0; k < bars.length; k++) {
-        el._cur[k] += (el._target[k] - el._cur[k]) * 0.12;
-        const wobble = playing ? 0.82 + 0.18 * Math.sin(now / 260 + k * 0.7) : 1;
-        bars[k].style.height = Math.max(6, el._cur[k] * wobble) + "%";
-      }
+  function bobWaves(el, playing) {
+    const motion = +(el.getAttribute("motion") || 0.18);
+    if (!el._bob || el._bobMotion !== motion) {
+      (el._bob || []).forEach((a) => a.cancel());
+      el._bobMotion = motion;
+      el._bob = [...el.children].map((bar, k) => bar.firstChild.animate(
+        [{ transform: `scaleY(${(1 - motion).toFixed(3)})` }, { transform: "scaleY(1)" }],
+        { duration: 340 + ((k * 137) % 260), delay: -((k * 89) % 400), iterations: Infinity, direction: "alternate", easing: "ease-in-out" }));
     }
+    for (const a of el._bob) playing && !paused ? a.play() : a.pause();
   }
 
   function progressBar(el) {
@@ -315,6 +385,7 @@
 
   const ready = new Promise((resolve) => {
     const boot = async () => {
+      await Promise.all(Wallpaper.waits);
       try {
         const res = await fetch("manifest.json", { cache: "no-store" });
         Wallpaper.manifest = await res.json();
@@ -328,7 +399,9 @@
   });
 
   // One-off render, used for the still that becomes the real wallpaper.
+  let lastPayload = null;
   async function render(payload) {
+    lastPayload = payload;
     await ready;
     const ctx = derive(payload);
     applyAll(ctx);
@@ -350,15 +423,19 @@
   }
 
   // ---------- live mode (desktop layer + preview) ----------
-  // The app sends full state when the song/settings change and a playback clock every 0.1s. Between those,
-  // the page runs its own clock, so a lyric line changes on its exact timestamp, and animates on every frame.
+  // The app sends full state when the song/settings change and a playback clock about once a second. Nothing runs
+  // per frame by default: the next lyric line is a timer set for its exact timestamp, and the moving parts
+  // (progress bar, karaoke sweep, waveform) are Web Animations / CSS animations the compositor plays on its own.
+  // A per-frame loop only runs for templates that ask for it (Wallpaper.on("frame") or per-frame CSS variables).
 
   const LEAD = 0.1;  // seconds a line shows before its timestamp
-  let live = null, liveDirty = false, liveIdx = null, lastBind = 0, looping = false, lastFrame = 0;
+  let live = null, liveDirty = false, liveIdx = null, paused = false;
+  let lineTimer = null, tickTimer = null, looping = false, lastFrame = 0;
+  const liveAnims = [];
 
   function livePosition() {
     const t = live.track;
-    const p = (t.position || 0) + (t.isPlaying ? (Date.now() - (t.stamp || Date.now())) / 1000 : 0);
+    const p = (t.position || 0) + (t.isPlaying && !paused ? (Date.now() - (t.stamp || Date.now())) / 1000 : 0);
     return t.duration ? Math.min(p, t.duration) : p;
   }
 
@@ -384,12 +461,9 @@
     }
   }
 
-  function frame(now) {
-    if (!live) { looping = false; return; }
-    // optional frame-rate cap (the app's Refresh Rate setting); 0 = every display frame
-    const fps = +live.fps || 0;
-    if (fps && now - lastFrame < 1000 / fps - 2) { requestAnimationFrame(frame); return; }
-    lastFrame = now;
+  /** Re-syncs everything to the playback clock. Runs on new state, each clock sync, and each line change. */
+  function liveUpdate() {
+    if (!live || paused) return;
     const ctx = liveContext();
     const lineChanged = ctx.lyrics.index !== liveIdx;
     if (liveDirty || lineChanged) {
@@ -398,16 +472,83 @@
       liveIdx = ctx.lyrics.index;
       applyAll(ctx);
       layoutAll(ctx);
+      scanUsedVars();
       if (lineChanged) { restartEnterAnimations(); emit("line", ctx); }
       if (firstForTrack) settle(ctx).then(() => live && layoutAll(Wallpaper.ctx));
     } else {
-      const s = document.documentElement.style;
-      s.setProperty("--progress", ctx.track.progress);
-      s.setProperty("--line-progress", ctx.lyrics.lineProgress);
-      if (now - lastBind > 250) { lastBind = now; Wallpaper.ctx = ctx; applyBindings(ctx); }
+      Wallpaper.ctx = ctx;
+      applyBindings(ctx);
     }
-    animateWaves(now, ctx.track.isPlaying);
-    emit("frame", ctx);
+    frameVars(ctx);
+    syncAnimations(ctx);
+    scheduleNextLine(ctx);
+    ensureFrameLoop();
+  }
+
+  /** Progress bars and the karaoke sweep: start from where the song is, animate to the end, on the compositor. */
+  function syncAnimations(ctx) {
+    liveAnims.splice(0).forEach((a) => a.cancel());
+    const playing = ctx.track.isPlaying && !paused;
+    const songLeft = Math.max(0, (ctx.track.duration || 0) - ctx.track.position);
+    for (const fill of document.querySelectorAll("progress-bar > .fill")) {
+      const from = `translateX(${((ctx.track.progress - 1) * 100).toFixed(3)}%)`;
+      fill.style.transform = from;
+      if (playing && songLeft > 0) {
+        liveAnims.push(fill.animate([{ transform: from }, { transform: "translateX(0%)" }], { duration: songLeft * 1000, easing: "linear", fill: "forwards" }));
+      }
+    }
+    const lines = ctx.lyrics.lines, i = ctx.lyrics.index;
+    const lineEnd = i + 1 < lines.length ? lines[i + 1].t : ctx.track.duration;
+    const lineLeft = Math.max(0, (lineEnd || 0) - ctx.track.position);
+    // Karaoke without repainting: a bright copy of the line sits in a clip box; the box slides right-to-left while
+    // the copy slides the opposite way, so the lit edge sweeps across while nothing is redrawn.
+    document.querySelectorAll(".sw-kara").forEach((k) => { if (!k.parentElement.matches(".karaoke .line.current, .karaoke-text")) k.remove(); });
+    for (const el of document.querySelectorAll(".karaoke .line.current, .karaoke-text")) {
+      let clip = el.querySelector(":scope > .sw-kara");
+      if (!clip || clip._text !== el.firstChild.textContent) {
+        if (clip) clip.remove();
+        clip = Object.assign(document.createElement("span"), { className: "sw-kara" });
+        const copy = Object.assign(document.createElement("span"), { className: "sw-kara-text", textContent: el.firstChild.textContent });
+        clip.appendChild(copy);
+        clip._text = el.firstChild.textContent;
+        el.appendChild(clip);
+      }
+      const copy = clip.firstChild, left = (1 - ctx.lyrics.lineProgress) * 100;
+      const a = [`translateX(${-left}%)`, "translateX(0%)"], b = [`translateX(${left}%)`, "translateX(0%)"];
+      clip.style.transform = a[0];
+      copy.style.transform = b[0];
+      if (playing && lineLeft > 0) {
+        const timing = { duration: lineLeft * 1000, easing: "linear", fill: "forwards" };
+        liveAnims.push(clip.animate(a.map((t) => ({ transform: t })), timing), copy.animate(b.map((t) => ({ transform: t })), timing));
+      }
+    }
+    for (const w of document.querySelectorAll("wave-form")) bobWaves(w, playing);
+    document.documentElement.classList.toggle("sw-paused", paused);
+  }
+
+  function scheduleNextLine(ctx) {
+    clearTimeout(lineTimer);
+    if (!ctx.track.isPlaying || paused) return;
+    const lines = ctx.lyrics.lines, next = lines[ctx.lyrics.index + 1];
+    if (!next) return;
+    const wait = (next.t - LEAD - ctx.track.position) * 1000;
+    lineTimer = setTimeout(liveUpdate, Math.max(0, wait) + 5);
+  }
+
+  function ensureFrameLoop() {
+    const wanted = !paused && (usedVars.size > 0 || (listeners.frame || []).length > 0);
+    if (wanted && !looping) { looping = true; requestAnimationFrame(frame); }
+  }
+
+  function frame(now) {
+    if (!live || paused || !(usedVars.size > 0 || (listeners.frame || []).length > 0)) { looping = false; return; }
+    const fps = +live.fps || 0;  // the app's Refresh Rate setting; 0 = every display frame
+    if (!fps || now - lastFrame >= 1000 / fps - 2) {
+      lastFrame = now;
+      const ctx = liveContext();
+      frameVars(ctx);
+      emit("frame", ctx);
+    }
     requestAnimationFrame(frame);
   }
 
@@ -416,16 +557,40 @@
     liveDirty = true;
     document.documentElement.classList.add("sw-live");
     ready.then(() => {
-      if (!looping) { looping = true; requestAnimationFrame(frame); }
+      liveUpdate();
+      if (!tickTimer) tickTimer = setInterval(() => {
+        if (!live || paused) return;
+        const ctx = liveContext();
+        Wallpaper.ctx = ctx;
+        applyBindings(ctx);  // elapsed time, clock
+        emit("tick", ctx);
+      }, 1000);
     });
   }
 
   function setClock(c) {
     if (!live) return;
     live.track = { ...live.track, position: c.position, isPlaying: c.isPlaying, stamp: c.stamp };
+    liveUpdate();
   }
 
-  window.__sw = { render: schedule, live: startLive, clock: setClock };
+  /** The desktop is fully covered (or uncovered): stop everything, then pick up where the song is. */
+  function setPaused(p) {
+    if (paused === !!p) return;
+    paused = !!p;
+    clearTimeout(lineTimer);
+    if (paused) {
+      liveAnims.forEach((a) => a.pause());
+      document.getAnimations().forEach((a) => a.pause());
+      document.documentElement.classList.add("sw-paused");
+    } else {
+      document.documentElement.classList.remove("sw-paused");
+      document.getAnimations().forEach((a) => a.play());
+      liveUpdate();
+    }
+  }
+
+  window.__sw = { render: schedule, live: startLive, clock: setClock, pause: setPaused };
   // The Customize window's preview talks over postMessage.
   window.addEventListener("message", (e) => {
     const m = e.data || {};

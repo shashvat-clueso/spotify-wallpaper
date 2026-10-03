@@ -36,19 +36,25 @@ swatch-row .chip { height: 5vmin; }
 swatch-row .hex { font: 1.1vmin ui-monospace, Menlo, monospace; margin-top: 0.8vmin; opacity: 0.55; }
 
 wave-form { display: flex; align-items: center; gap: 0.3vmin; height: 7vmin; }
-wave-form .bar { flex: 1; background: currentColor; border-radius: 99px; }
+wave-form .bar { flex: 1; height: 100%; display: flex; transform-origin: center; }
+wave-form .bar > i { flex: 1; background: currentColor; border-radius: 99px; transform-origin: inherit; }
+.sw-live wave-form .bar { transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+.sw-live wave-form .bar > i { will-change: transform; }
 
 progress-bar { position: relative; height: 0.5vmin; border-radius: 99px; background: rgba(255, 255, 255, 0.25); overflow: hidden; }
-progress-bar .fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--progress) * 100%); background: currentColor; border-radius: inherit; }
+progress-bar .fill { position: absolute; inset: 0; background: currentColor; border-radius: inherit;
+  transform: translateX(calc((var(--progress) - 1) * 100%)); }
+.sw-live progress-bar .fill { will-change: transform; }
 
-/* Film grain overlay: <div class="sw-grain"></div> */
+/* Film grain overlay: <div class="sw-grain"></div>. A precomputed noise tile (not a live SVG filter, which the
+   browser recomputed whenever anything underneath moved), on its own layer so it's never redrawn. */
 .sw-grain {
   position: absolute;
   inset: 0;
   pointer-events: none;
   opacity: 0.09;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background: url("/runtime/grain.png") 0 0 / 256px 256px repeat;
+  will-change: transform;
 }
 
 /* ---------- animation (live layer and preview only; stills are captured without transitions) ---------- */
@@ -64,12 +70,12 @@ progress-bar .fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--pr
 
 /* Karaoke fill: add class "karaoke" to a lyrics-block (or any element) to sweep the current line.
    Live layer only; stills show the whole current line lit. */
-.sw-live .karaoke .line.current, .sw-live .karaoke-text {
-  color: transparent !important;
-  background: linear-gradient(90deg, var(--karaoke-on, #fff) calc(var(--line-progress) * 100%), var(--karaoke-off, rgba(255, 255, 255, 0.4)) calc(var(--line-progress) * 100%));
-  -webkit-background-clip: text;
-  background-clip: text;
-}
+.sw-live .karaoke .line.current, .sw-live .karaoke-text { position: relative; color: var(--karaoke-off, rgba(255, 255, 255, 0.4)) !important; }
+.sw-kara { display: none; }
+.sw-live .sw-kara { display: block; position: absolute; inset: 0; overflow: hidden; pointer-events: none; will-change: transform; }
+.sw-kara-text { display: block; width: 100%; height: 100%; color: var(--karaoke-on, #fff); will-change: transform; }
+/* covered desktop: everything stops */
+.sw-paused * { animation-play-state: paused !important; }
 
 @media (prefers-reduced-motion: reduce) {
   .sw-live * { animation: none !important; transition: none !important; }

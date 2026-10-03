@@ -6,8 +6,10 @@ with sliders or rewrite completely.
 
 <p align="center">
   <img src="docs/screenshots/template-card.jpg" width="49%" alt="Lyric Card template">
+  <img src="docs/screenshots/template-vinyl.jpg" width="49%" alt="Vinyl template">
+  <img src="docs/screenshots/template-lockscreen.jpg" width="49%" alt="Lock Screen template">
+  <img src="docs/screenshots/template-visualizer.jpg" width="49%" alt="Visualizer template">
   <img src="docs/screenshots/template-poster.jpg" width="49%" alt="Album Poster template">
-  <img src="docs/screenshots/template-minimal.jpg" width="49%" alt="Minimal template">
   <img src="docs/screenshots/template-glow.jpg" width="49%" alt="Glow template">
 </p>
 
@@ -22,10 +24,16 @@ with sliders or rewrite completely.
 - **The real wallpaper stays in sync.** On every track change the app also sets your actual wallpaper to a still of
   the song, so the lock screen and Mission Control match. When you quit, or nothing is playing, your own wallpaper
   comes back.
-- **Four built-in templates** based on popular Pinterest styles: Lyric Card (Spotify lyric cards), Album Poster
-  (minimalist album posters with color swatches), Minimal (small type on a grainy gradient) and Glow (Apple Music
-  style full-screen lyrics).
+- **Eight built-in templates:** Lyric Card (Spotify lyric cards), Album Poster (minimalist posters with color swatches),
+  Minimal, Glow (Apple Music style), Vinyl (a spinning record with the cover as its label), Typewriter (lyrics type
+  themselves out), Lock Screen (big live clock) and Visualizer (bars in the cover's colors).
+- **Light on your Mac:** about 1–5% CPU while animating at 60 fps. Lines change on timers set for their exact
+  timestamps, animations run on the GPU, the cover is blurred once per song, and everything pauses when windows cover
+  the desktop.
 - **Colors from the cover:** every template can follow each song's palette automatically.
+- **Template Builder:** a Figma-style editor for designing your own wallpaper with no code. Draw text, lyrics, the
+  cover, images, shapes, a vinyl record, a progress bar, a waveform and color swatches on a live canvas; style them;
+  add motion; then **Edit Code** to keep going in HTML/CSS.
 - **Customizable:** each template's settings (colors, fonts, sizes, lines shown, blur, grain, animation) appear in
   the Customize window with a live preview. You can also duplicate a template and edit its HTML/CSS directly; it
   reloads as you save.
@@ -60,6 +68,7 @@ Everything is in the ♪ menu bar icon:
 |---|---|
 | **Template** | Switch between templates |
 | **Customize… (⌘,)** | Gallery, live preview and every setting of each template |
+| **Template Builder…** | Design a new template visually, no code |
 | **Lyrics** | Which sources were used, or pick one source. Nudge timing earlier or later (remembered per song), or search again |
 | **Refresh Rate** | Display maximum, 60, 30 or 15 fps for the animation. Lyric timing is exact at any rate |
 | **Pause Wallpaper** | Put your normal wallpaper back until you resume |
@@ -68,6 +77,40 @@ Everything is in the ♪ menu bar icon:
 | **Check for Updates…** | Look for a new release now. Turn **Automatically Install Updates** on or off |
 
 ## Make your own templates
+
+### Without code: the Template Builder
+
+Open **Template Builder…** from the menu, or **＋** in Customize, and start from a layout (Blank, Spotlight, Glass Card,
+Headline, Record Room, Clock).
+
+- **Tools** (bar under the canvas): Move (V), Text (T), Rectangle (R), Ellipse (O), Line (L), Triangle, Star,
+  Polygon, Arrow, Image (I), Lyrics (Y), Album Cover (C), Vinyl Record, Progress Bar, Waveform and Color Swatches.
+  Pick a tool and drag on the canvas to draw it, or click for a default size. Drop images from Finder onto the canvas.
+- **Text** can show the song title, artist, album, the current/next/previous lyric, times, a live **clock** or the
+  **date**, or your own words.
+- **Canvas:** the song that's playing, at the shape of each of your screens. Drag to move, pull the handles to resize
+  (⇧ keeps proportions), with snapping to the center and other layers (⌥ to place freely) and size readouts.
+- **Layers:** drag to reorder, double-click to rename, hide and lock. Right-click a layer for arrange, copy, paste,
+  duplicate and delete.
+- **Design panel:** alignment, position, rotation, size, opacity, corner radius, blend mode, typography, fills
+  (solid, gradient, the album cover or an image), colors that follow each song's cover (*Auto*), stroke, drop shadow,
+  layer blur, frosted glass, and **Motion** (spin, pulse, float, sway, breathe, blink) that can pause with the music.
+- **Background:** blurred cover, a glow from the cover's colors, gradient, image or solid color, plus film grain.
+- **Undo/redo, copy/paste, duplicate, nudge with the arrow keys**, and autosave after the first save.
+- **Edit Code** turns the design into a plain HTML/CSS template and opens it in your code editor.
+
+Positions are stored as percentages of the screen and sizes relative to it, so one design fits a laptop and an
+ultrawide. Designs are saved as normal templates in the templates folder, so they can be shared like any other.
+
+<p align="center">
+  <img src="docs/screenshots/builder.jpg" width="85%" alt="The Template Builder">
+</p>
+<p align="center">
+  <img src="docs/screenshots/builder-glass-card.jpg" width="49%" alt="Glass Card starter">
+  <img src="docs/screenshots/builder-record-room.jpg" width="49%" alt="Record Room starter">
+</p>
+
+### With code
 
 A template is a folder with a `manifest.json` (name and settings) and an `index.html`. The quickest start is
 **Customize → pick a template → Duplicate & edit code**. That copies it to
@@ -104,7 +147,8 @@ Settings declared in `manifest.json` show up as controls automatically:
 ```
 
 You get track data (`track.title`, `track.progress`, …), lyrics (`lyrics.current`, `lyrics.next1`,
-`lyrics.lineProgress`, …), cover colors (`--vibrant`, `--dominant`, `--p0`…`--p5`, …), smart components
+`lyrics.lineProgress`, …), time (`time.song`, `time.line`, `time.clock`, `time.date`, and `--song-time` /
+`--line-time` CSS variables for time-driven animation), cover colors (`--vibrant`, `--dominant`, `--p0`…`--p5`, …), smart components
 (`<lyrics-block>`, `<fit-text>`, `<swatch-row>`, `<wave-form>`, `<progress-bar>`) and animation hooks. The full
 reference is in **[TEMPLATE_GUIDE.md](app/Resources/web/TEMPLATE_GUIDE.md)**, which is also copied into your
 templates folder.
@@ -112,7 +156,7 @@ templates folder.
 ## How it works
 
 ```
-Spotify app ──AppleScript, every 0.1s──▶ Engine ──▶ lyrics: LRCLIB + NetEase + QQ Music + Kugou → consensus timing
+Spotify app ──notifications + a light check each second, on a background thread──▶ Engine ──▶ lyrics: LRCLIB + NetEase + QQ Music + Kugou → consensus timing
                                            │         cover art → colors via k-means
                                            │
                      ┌─────────────────────┴──────────────────────┐
@@ -120,9 +164,10 @@ Spotify app ──AppleScript, every 0.1s──▶ Engine ──▶ lyrics: LRCL
    Live layer (per screen)                          Still (per screen, on track change)
    WKWebView in a window just above the             same template rendered off-screen, snapshotted
    wallpaper and below the desktop icons,           and set as the real wallpaper via NSWorkspace
-   on all Spaces. The template runs its own
-   playback clock, re-synced every 0.1s, so
-   lines change on their exact timestamps.
+   on all Spaces. The template keeps its own
+   clock; lines change on timers set for their
+   exact timestamps and animations run on the
+   GPU compositor.
 ```
 
 - Lyrics: each source is searched with the track's title, artist and duration, and results must match all three.

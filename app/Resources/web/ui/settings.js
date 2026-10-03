@@ -1,9 +1,18 @@
 // The Customize window. Talks to the app through webkit.messageHandlers.app; the app calls App.receive().
 
-const S = { templates: [], active: null, values: {}, state: null, selected: null };
+const S = { templates: [], active: null, values: {}, state: null, selected: null, loadedPreview: null };
 const $ = (id) => document.getElementById(id);
 const post = (msg) => window.webkit?.messageHandlers?.app?.postMessage(msg);
 const tpl = () => S.templates.find((t) => t.id === S.selected);
+const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+const P = (d) => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const ICON = {
+  plus: P('<path d="M8 3v10M3 8h10"/>'),
+  builtin: P('<rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/>'),
+  builder: P('<path d="M3 13l3-1 7-7-2-2-7 7z"/><path d="M9.5 4.5l2 2"/>'),
+  code: P('<path d="M5.5 4.5L2 8l3.5 3.5M10.5 4.5L14 8l-3.5 3.5"/>'),
+};
 
 window.App = {
   receive(msg) {
@@ -30,19 +39,31 @@ window.App = {
   },
 };
 
-// ---------- sidebar ----------
+// ---------- title bar: tell the app which parts are controls (the rest drags the window) ----------
+
+function reportTitlebarHoles() {
+  const rects = [...$("topbar").querySelectorAll("button")].map((el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height };
+  });
+  post({ type: "titlebarHoles", rects });
+}
+new ResizeObserver(reportTitlebarHoles).observe($("topbar"));
+
+// ---------- template list ----------
 
 function renderList() {
-  const ul = $("templates");
-  ul.innerHTML = "";
+  const box = $("templates");
+  box.innerHTML = "";
   for (const t of S.templates) {
-    const li = document.createElement("li");
-    li.className = t.id === S.selected ? "selected" : "";
-    li.innerHTML = `<span class="name"></span><span class="tag">${t.builtin ? "Built-in" : "Custom"}</span>`;
-    li.querySelector(".name").textContent = t.name;
-    if (t.id === S.active) li.querySelector(".name").insertAdjacentHTML("beforeend", `<span class="badge">● Active</span>`);
-    li.onclick = () => { select(t.id, true); renderList(); };
-    ul.appendChild(li);
+    const row = h("div", "row-item tpl-row" + (t.id === S.selected ? " sel" : ""));
+    row.innerHTML = `<span class="dot">${t.builtin ? ICON.builtin : t.builder ? ICON.builder : ICON.code}</span>
+      <span class="txt"><span class="nm"></span><span class="tag">${t.builtin ? "Built-in" : t.builder ? "Made in Builder" : "Custom code"}</span></span>
+      ${t.id === S.active ? '<span class="live" title="Current wallpaper"></span>' : ""}`;
+    row.querySelector(".nm").textContent = t.name;
+    row.onclick = () => { select(t.id, true); renderList(); };
+    row.ondblclick = () => { if (t.builder) post({ type: "openBuilder", id: t.id }); };
+    box.appendChild(row);
   }
 }
 
@@ -55,9 +76,12 @@ function select(id, reloadPreview) {
   const isActive = t.id === S.active;
   $("activate").disabled = isActive;
   $("activate").textContent = isActive ? "Current Wallpaper" : "Use as Wallpaper";
-  $("editCode").textContent = t.builtin ? "Duplicate & edit code" : "Edit code (opens folder)";
+  $("activeBadge").hidden = !isActive;
+  $("editCode").textContent = t.builtin ? "Duplicate & edit code" : t.builder ? "Open in Template Builder" : "Edit code";
+  $("reset").hidden = !!t.builder || !t.params.length;
   renderParams();
   renderNowPlaying();
+  reportTitlebarHoles();
   if (reloadPreview) loadPreview();
 }
 
@@ -78,15 +102,11 @@ function layoutPreview() {
   const wrap = $("previewWrap").getBoundingClientRect();
   const k = Math.min(wrap.width / scr.width, wrap.height / scr.height);
   const frame = $("preview"), box = $("previewFrame");
-  frame.style.width = scr.width + "px";
-  frame.style.height = scr.height + "px";
-  frame.style.transform = `scale(${k})`;
-  box.style.width = scr.width * k + "px";
-  box.style.height = scr.height * k + "px";
-  box.style.left = (wrap.width - scr.width * k) / 2 + "px";
-  box.style.top = (wrap.height - scr.height * k) / 2 + "px";
+  Object.assign(frame.style, { width: scr.width + "px", height: scr.height + "px", transform: `scale(${k})` });
+  Object.assign(box.style, { width: scr.width * k + "px", height: scr.height * k + "px",
+    left: (wrap.width - scr.width * k) / 2 + "px", top: (wrap.height - scr.height * k) / 2 + "px" });
 }
-window.addEventListener("resize", layoutPreview);
+new ResizeObserver(layoutPreview).observe($("previewWrap"));
 
 function sendPreview() {
   const t = tpl(), frame = $("preview");
@@ -97,11 +117,11 @@ function sendPreview() {
 function renderNowPlaying() {
   const tr = S.state && S.state.track;
   $("nowPlaying").textContent = !tr ? "" : tr.id === "sample"
-    ? "Previewing with sample data — play something in Spotify to see it live."
+    ? "Previewing with a sample song. Play something in Spotify to see it live."
     : `Live: ${tr.title} — ${tr.artist}`;
 }
 
-// ---------- inspector ----------
+// ---------- settings ----------
 
 const AUTO_LABELS = {
   vibrant: "Vibrant", dominant: "Dominant", card: "Card", deep: "Deep", dark: "Dark",
@@ -119,83 +139,103 @@ function renderParams() {
   const box = $("params");
   box.innerHTML = "";
   const t = tpl();
+  if (t.builder) {
+    const note = h("div", "builder-note", "This template was made in the Template Builder. Open it there to change the design.");
+    const b = h("button", "btn primary wide", "Open in Template Builder");
+    b.onclick = () => post({ type: "openBuilder", id: t.id });
+    note.appendChild(b);
+    box.appendChild(note);
+    return;
+  }
   if (!t.params.length) {
-    box.innerHTML = `<div class="hint">This template has no settings. Add a "params" list to its manifest.json.</div>`;
+    box.appendChild(h("div", "builder-note", 'This template has no settings. Add a "params" list to its manifest.json.'));
     return;
   }
   const values = S.values[t.id] || {};
-  for (const p of t.params) {
-    const v = values[p.key] !== undefined ? values[p.key] : p.default;
-    box.appendChild(control(p, v));
-  }
+  const sec = h("div", "section");
+  for (const p of t.params) sec.appendChild(control(p, values[p.key] !== undefined ? values[p.key] : p.default));
+  box.appendChild(sec);
 }
 
 function control(p, v) {
-  const row = document.createElement("div");
-  row.className = "row";
-  const title = document.createElement("label");
-  title.className = "title";
-  title.textContent = p.label || p.key;
-  row.appendChild(title);
+  const row = h("div", "param");
+  const label = p.label || p.key;
 
-  if (p.type === "number" || p.type === "int") {
-    const value = Object.assign(document.createElement("span"), { className: "value" });
-    const show = (x) => (value.textContent = (p.type === "int" ? x : +(+x).toFixed(2)) + (p.unit && p.unit !== "%" ? " " + p.unit : p.unit || ""));
-    show(v);
-    title.appendChild(value);
-    const input = Object.assign(document.createElement("input"), {
-      type: "range", min: p.min ?? 0, max: p.max ?? 100, step: p.type === "int" ? 1 : p.step ?? 0.1, value: v,
-    });
-    input.oninput = () => { show(input.value); setParam(p.key, +input.value); };
-    row.appendChild(input);
-  } else if (p.type === "bool") {
-    row.classList.add("inline");
-    const toggle = document.createElement("label");
-    toggle.className = "toggle";
-    toggle.innerHTML = `<input type="checkbox"><span></span>`;
-    const input = toggle.querySelector("input");
+  if (p.type === "bool") {
+    const r = h("div", "label-row");
+    r.appendChild(h("span", null, label));
+    const t = h("label", "toggle");
+    t.innerHTML = `<input type="checkbox"><span></span>`;
+    const input = t.querySelector("input");
     input.checked = !!v;
     input.onchange = () => setParam(p.key, input.checked);
-    row.appendChild(toggle);
+    r.appendChild(t);
+    row.appendChild(r);
+    return row;
+  }
+
+  row.appendChild(h("div", "label", label));
+  if (p.type === "number" || p.type === "int") {
+    const wrap = h("div", "slider-row");
+    const range = Object.assign(h("input"), { type: "range", min: p.min ?? 0, max: p.max ?? 100, step: p.type === "int" ? 1 : p.step ?? 0.1, value: v });
+    const f = h("label", "field");
+    const num = Object.assign(h("input"), { type: "text", value: v });
+    f.appendChild(num);
+    if (p.unit) f.appendChild(h("span", "suf", p.unit));
+    range.oninput = () => { num.value = +(+range.value).toFixed(2); setParam(p.key, +range.value); };
+    num.onchange = () => { const x = parseFloat(num.value); if (!isNaN(x)) { range.value = x; setParam(p.key, x); } };
+    wrap.append(range, f);
+    row.appendChild(wrap);
   } else if (p.type === "color") {
-    const wrap = Object.assign(document.createElement("div"), { className: "color" });
-    const sel = document.createElement("select");
+    const f = h("div", "field");
     const colors = (S.state && S.state.colors) || {};
+    const isAuto = typeof v === "string" && v.startsWith("auto:");
+    const resolved = (x) => (typeof x === "string" && x.startsWith("auto:") ? colors[x.slice(5)] || "#888888" : x);
+    const sw = h("label", "swatch");
+    const fill = h("i");
+    fill.style.background = resolved(v);
+    const picker = Object.assign(h("input"), { type: "color", value: /^#[0-9a-f]{6}$/i.test(resolved(v) || "") ? resolved(v) : "#888888" });
+    sw.append(fill, picker);
+    const sel = h("select");
     for (const name of Wallpaper.autoColors) sel.add(new Option(`Auto · ${AUTO_LABELS[name] || name}`, "auto:" + name));
     sel.add(new Option("Custom", "custom"));
-    const picker = Object.assign(document.createElement("input"), { type: "color" });
-    const isAuto = typeof v === "string" && v.startsWith("auto:");
     sel.value = isAuto ? v : "custom";
-    picker.value = isAuto ? colors[v.slice(5)] || "#888888" : v;
-    sel.onchange = () => {
-      if (sel.value === "custom") setParam(p.key, picker.value);
-      else { picker.value = colors[sel.value.slice(5)] || picker.value; setParam(p.key, sel.value); }
-    };
-    picker.oninput = () => { sel.value = "custom"; setParam(p.key, picker.value); };
-    wrap.append(sel, picker);
-    row.appendChild(wrap);
+    const set = (x) => { fill.style.background = resolved(x); setParam(p.key, x); };
+    sel.onchange = () => { if (sel.value === "custom") set(picker.value.toUpperCase()); else set(sel.value); };
+    picker.oninput = () => { sel.value = "custom"; set(picker.value.toUpperCase()); };
+    f.append(sw, sel);
+    row.appendChild(f);
   } else if (p.type === "font" || p.type === "select") {
-    const sel = document.createElement("select");
-    const opts = p.type === "font"
-      ? Object.keys(Wallpaper.fonts).map((f) => ({ value: f, label: f }))
+    const f = h("label", "field");
+    const sel = h("select");
+    const opts = p.type === "font" ? Object.keys(Wallpaper.fonts).map((k) => ({ value: k, label: k }))
       : (p.options || []).map((o) => (typeof o === "string" ? { value: o, label: o } : o));
     for (const o of opts) sel.add(new Option(o.label, o.value));
     sel.value = v;
     sel.onchange = () => setParam(p.key, sel.value);
-    row.appendChild(sel);
+    f.appendChild(sel);
+    row.appendChild(f);
   } else {
-    const input = Object.assign(document.createElement("input"), { type: "text", value: v ?? "" });
+    const f = h("label", "field");
+    const input = Object.assign(h("input"), { type: "text", value: v ?? "" });
     input.oninput = () => setParam(p.key, input.value);
-    row.appendChild(input);
+    f.appendChild(input);
+    row.appendChild(f);
   }
   return row;
 }
 
 // ---------- buttons ----------
 
+$("newTemplate").innerHTML = ICON.plus;
+$("newTemplate").onclick = () => post({ type: "newTemplate" });
+$("openBuilderTop").onclick = () => post({ type: "newTemplate" });
 $("activate").onclick = () => post({ type: "activate", id: S.selected });
 $("reset").onclick = () => post({ type: "reset", id: S.selected });
-$("editCode").onclick = () => post({ type: tpl().builtin ? "duplicate" : "openFolder", id: S.selected });
+$("editCode").onclick = () => {
+  const t = tpl();
+  post(t.builder ? { type: "openBuilder", id: t.id } : { type: t.builtin ? "duplicate" : "openFolder", id: t.id });
+};
 $("openFolder").onclick = () => post({ type: "openFolder" });
 $("reload").onclick = () => post({ type: "reload" });
 

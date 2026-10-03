@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  body { background: var(--param-background); color: #fff; font-family: var(--param-font); }
+  .glow { position: absolute; left: 50%; bottom: -30vh; width: 120vw; height: 80vh; transform: translateX(-50%);
+    background: radial-gradient(closest-side, var(--param-colorA), transparent); opacity: .35; }
+  .viz { position: absolute; left: 4vw; right: 4vw; bottom: 9vh; height: var(--param-height); }
+  wave-form { height: 100%; gap: .35vw; align-items: flex-end; }
+  wave-form .bar { transform-origin: bottom; }
+  wave-form .bar > i { border-radius: .4vmin .4vmin 0 0; background: linear-gradient(to top, var(--param-colorA), var(--param-colorB)); }
+  .mirror { position: absolute; left: 4vw; right: 4vw; bottom: calc(9vh - var(--param-height) * 0.35); height: calc(var(--param-height) * 0.35);
+    transform: scaleY(-1); opacity: .22; -webkit-mask-image: linear-gradient(to bottom, #000, transparent); }
+  .mirror wave-form { height: calc(100% / 0.35); align-items: flex-end; }
+  .top { position: absolute; left: 4vw; top: 6vh; display: flex; align-items: center; gap: 1.8vmin; }
+  .top img { width: 7vmin; height: 7vmin; border-radius: .8vmin; object-fit: cover; box-shadow: 0 1vmin 3vmin rgba(0,0,0,.4); }
+  .top .t { font-weight: 700; font-size: 2.2vmin; }
+  .top .a { opacity: .6; font-size: 1.8vmin; margin-top: .3vmin; }
+  .lyric { position: absolute; left: 8vw; right: 8vw; top: 24vh; text-align: center; font-weight: 800; font-size: var(--param-lyricSize); line-height: 1.12; }
+  .next { position: absolute; left: 8vw; right: 8vw; top: calc(24vh + var(--param-lyricSize) * 2.7); text-align: center; font-weight: 600;
+    font-size: calc(var(--param-lyricSize) * 0.45); opacity: .4; }
+</style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="top"><img data-src="track.cover" alt=""><div><div class="t" data-bind="track.title"></div><div class="a" data-bind="track.artist"></div></div></div>
+  <div class="lyric" data-animate data-bind="lyrics.current|note"></div>
+  <div class="next" data-animate data-bind="lyrics.next1"></div>
+  <div class="viz"><wave-form data-attr-bars="params.bars" data-attr-motion="params.energy"></wave-form></div>
+  <div class="mirror" data-show="params.mirror"><wave-form data-attr-bars="params.bars" data-attr-motion="params.energy"></wave-form></div>
+</body>
+</html>
