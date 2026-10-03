@@ -27,7 +27,8 @@ echo "Built $APP"
 case "$MODE" in
   install)
     osascript -e 'quit app "Spotify Wallpaper"' 2>/dev/null || true
-    sleep 1
+    pkill -TERM -f "Spotify Wallpaper.app/Contents/MacOS/SpotifyWallpaper" 2>/dev/null || true
+    sleep 2
     rm -rf "/Applications/Spotify Wallpaper.app"
     cp -R "$APP" /Applications/
     open "/Applications/Spotify Wallpaper.app"

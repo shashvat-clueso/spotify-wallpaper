@@ -25,9 +25,16 @@ final class SettingsWindowController: NSWindowController, WKScriptMessageHandler
 
         let config = engine.makeWebConfiguration()
         config.userContentController.add(self, name: "app")
-        webView = WKWebView(frame: window.contentView!.bounds, configuration: config)
+        let container = NSView(frame: window.contentView!.bounds)
+        webView = WKWebView(frame: container.bounds, configuration: config)
         webView.autoresizingMask = [.width, .height]
-        window.contentView = webView
+        container.addSubview(webView)
+        // The page fills the (transparent) title bar too and would swallow drags, so put a drag strip over it.
+        let strip = DragStrip(frame: NSRect(x: 0, y: container.bounds.height - DragStrip.height,
+                                            width: container.bounds.width, height: DragStrip.height))
+        strip.autoresizingMask = [.width, .minYMargin]
+        container.addSubview(strip)
+        window.contentView = container
         webView.load(URLRequest(url: URL(string: "sw://app/ui/settings.html")!))
     }
 
@@ -114,5 +121,21 @@ final class SettingsWindowController: NSWindowController, WKScriptMessageHandler
 
     private func send(_ message: [String: Any]) {
         webView.evaluateJavaScript("window.App && App.receive(\(jsonString(message)))")
+    }
+}
+
+/// Invisible title-bar strip: drag to move the window, double-click to zoom (or minimize, per System Settings).
+private final class DragStrip: NSView {
+    static let height: CGFloat = 36
+
+    override var mouseDownCanMoveWindow: Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 {
+            let action = UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") ?? "Maximize"
+            if action == "Minimize" { window?.performMiniaturize(nil) } else if action != "None" { window?.performZoom(nil) }
+        } else {
+            window?.performDrag(with: event)
+        }
     }
 }
