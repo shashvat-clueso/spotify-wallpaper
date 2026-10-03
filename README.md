@@ -45,6 +45,10 @@ with sliders or rewrite completely.
 
 Requires macOS 14 Sonoma or later and the Spotify desktop app. It runs natively on Apple Silicon and Intel.
 
+**Updates install themselves** from v1.2.0 on. The app checks this repo's releases at launch and every 6 hours,
+verifies the download (GitHub's SHA-256 checksum, the app's identifier and its code signature), swaps it in and
+relaunches. Turn this off under **Automatically Install Updates** in the menu.
+
 **Recommended:** turn on **System Settings → Wallpaper → Show on all Spaces**, so the still wallpaper is shared by
 every Space rather than set one Space at a time.
 
@@ -61,6 +65,7 @@ Everything is in the ♪ menu bar icon:
 | **Pause Wallpaper** | Put your normal wallpaper back until you resume |
 | **Open Templates Folder** | Where your own templates live |
 | **Launch at Login** | Start automatically |
+| **Check for Updates…** | Look for a new release now. Turn **Automatically Install Updates** on or off |
 
 ## Make your own templates
 

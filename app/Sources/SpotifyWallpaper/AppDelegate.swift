@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var engine = Engine(store: store, paths: paths)
     private var statusItem: NSStatusItem!
     private var settings: SettingsWindowController?
+    private let updater = Updater()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let probe = LyricsProbe.request {
@@ -37,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         engine.onClock = { [weak self] clock in self?.settings?.pushClock(clock) }
         engine.onTemplateFilesChanged = { [weak self] in self?.settings?.templateFilesChanged() }
         engine.start()
+        updater.start()
 
         if !UserDefaults.standard.bool(forKey: "launchedBefore") {
             UserDefaults.standard.set(true, forKey: "launchedBefore")
@@ -107,6 +109,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add(menu, engine.paused ? "Resume Wallpaper" : "Pause Wallpaper", #selector(togglePause), "")
         menu.addItem(.separator())
         add(menu, "Open Templates Folder", #selector(openTemplatesFolder), "")
+        menu.addItem(.separator())
+        let version = NSMenuItem(title: updater.status ?? "Spotify Wallpaper \(updater.currentVersion)", action: nil, keyEquivalent: "")
+        version.isEnabled = false
+        menu.addItem(version)
+        add(menu, "Check for Updates…", #selector(checkForUpdates), "")
+        add(menu, "Automatically Install Updates", #selector(toggleAutoUpdate), "").state = updater.automatic ? .on : .off
         add(menu, "Launch at Login", #selector(toggleLaunchAtLogin), "").state =
             SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(.separator())
@@ -126,6 +134,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         store.activeID = id
         engine.invalidate()
         settings?.sendInit()
+    }
+
+    @objc private func checkForUpdates() { Task { await updater.check(userInitiated: true) } }
+
+    @objc private func toggleAutoUpdate() {
+        updater.automatic.toggle()
+        if updater.automatic { Task { await updater.check(userInitiated: false) } }
     }
 
     @objc private func pickRefreshRate(_ sender: NSMenuItem) { engine.refreshRate = sender.tag }
