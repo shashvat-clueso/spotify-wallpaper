@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="theme.css">
+<style>
+  body { display: grid; grid-template-rows: var(--bar) 1fr; background: var(--panel); -webkit-user-select: text; user-select: text; }
+  .scroll { padding: 8px 0 40px; }
+  article { max-width: 640px; margin: 0 auto; padding: 0 32px; font-size: 13px; line-height: 1.6; }
+  article h1 { display: none; }
+  article > p:first-of-type { color: var(--text-2); margin: 10px 0 18px; }
+  .release { padding: 18px 0 8px; border-top: 1px solid var(--line); }
+  .release:first-of-type { border-top: 0; }
+  .release h2 { display: flex; align-items: center; gap: 8px; font-size: 17px; margin: 0 0 2px; }
+  .release .date { color: var(--text-2); font-size: 12px; font-weight: 400; }
+  .release h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); margin: 14px 0 6px; }
+  .release ul { margin: 0; padding-left: 18px; }
+  .release li { margin: 4px 0; }
+  .release li::marker { color: var(--text-3); }
+  code { font: 11.5px ui-monospace, Menlo, monospace; background: var(--field); padding: 1px 5px; border-radius: 4px; }
+  a { color: var(--blue); text-decoration: none; }
+  .badge.installed { background: var(--blue-soft); color: var(--blue); }
+</style>
+</head>
+<body>
+  <header class="topbar"><span class="title">What's New</span></header>
+  <div class="scroll"><article id="log"></article></div>
+  <script>
+    // A small Markdown renderer for CHANGELOG.md: headings, lists (nested), paragraphs, **bold**, `code`, [links](…).
+    const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+    const inline = (s) => esc(s)
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" data-external>$1</a>');
+
+    function render(md, installed) {
+      let html = "", list = [], inRelease = false;
+      const closeLists = (depth = 0) => { while (list.length > depth) { html += "</li></ul>"; list.pop(); } };
+      for (const raw of md.split("\n")) {
+        const line = raw.replace(/\s+$/, "");
+        const item = line.match(/^(\s*)- (.*)$/);
+        if (item) {
+          const depth = Math.floor(item[1].length / 2) + 1;
+          if (list.length < depth) { html += "<ul>"; list.push(depth); }
+          else { closeLists(depth); html += "</li>"; }
+          html += "<li>" + inline(item[2]);
+          continue;
+        }
+        closeLists();
+        if (/^# /.test(line)) html += `<h1>${inline(line.slice(2))}</h1>`;
+        else if (/^## /.test(line)) {
+          if (inRelease) html += "</section>";
+          inRelease = true;
+          const [, version, date] = line.slice(3).match(/^(\S+)(?:\s+—\s+(.*))?$/) || [, line.slice(3)];
+          const badge = version === installed ? '<span class="badge installed">Installed</span>' : "";
+          html += `<section class="release"><h2>${esc(version)} ${badge}<span class="date">${date ? esc(date) : ""}</span></h2>`;
+        } else if (/^### /.test(line)) html += `<h3>${inline(line.slice(4))}</h3>`;
+        else if (line.trim()) html += `<p>${inline(line)}</p>`;
+      }
+      closeLists();
+      if (inRelease) html += "</section>";
+      document.getElementById("log").innerHTML = html;
+    }
+
+    const installed = new URLSearchParams(location.search).get("v");
+    fetch("CHANGELOG.md", { cache: "no-store" }).then((r) => r.text()).then((md) => render(md, installed));
+    document.addEventListener("click", (e) => {
+      const a = e.target.closest("a[data-external]");
+      if (a) { e.preventDefault(); window.webkit?.messageHandlers?.app?.postMessage({ type: "open", url: a.href }); }
+    });
+  </script>
+</body>
+</html>

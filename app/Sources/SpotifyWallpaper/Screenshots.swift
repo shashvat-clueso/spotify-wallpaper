@@ -1,4 +1,9 @@
 import AppKit
+import WebKit
+
+private extension WKWebView {
+    func takePrivateSnapshot() async throws -> NSImage { try await takeSnapshot(configuration: nil) }
+}
 
 /// Developer tool: `SpotifyWallpaper --screenshots <dir>` renders every template, plus the Customize window,
 /// with the bundled sample song and quits. Used for the README.
@@ -31,6 +36,15 @@ enum Screenshots {
             try? jpeg.write(to: dir.appendingPathComponent("customize.jpg"))
         }
         settings.close()
+
+        let news = WhatsNewWindowController(engine: engine)
+        news.show()
+        try? await Task.sleep(for: .seconds(2))
+        if let view = news.window?.contentView?.subviews.first as? WKWebView, let image = try? await view.takePrivateSnapshot(),
+           let jpeg = jpegData(image, quality: 0.86) {
+            try? jpeg.write(to: dir.appendingPathComponent("whats-new.jpg"))
+        }
+        news.close()
 
         // Template Builder: the editor with a starter open, and every starter rendered as a real template
         let builder = BuilderWindowController(engine: engine, store: store, templateID: nil)

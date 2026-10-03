@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var settings: SettingsWindowController?
     private var builder: BuilderWindowController?
+    private var whatsNew: WhatsNewWindowController?
     private let updater = Updater()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -41,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         engine.start()
         updater.start()
 
+        if WhatsNewWindowController.shouldShowAfterUpdate() { openWhatsNew() }
         if !UserDefaults.standard.bool(forKey: "launchedBefore") {
             UserDefaults.standard.set(true, forKey: "launchedBefore")
             openSettings()
@@ -115,6 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let version = NSMenuItem(title: updater.status ?? "Spotify Wallpaper \(updater.currentVersion)", action: nil, keyEquivalent: "")
         version.isEnabled = false
         menu.addItem(version)
+        add(menu, "What's New…", #selector(openWhatsNew), "")
         add(menu, "Check for Updates…", #selector(checkForUpdates), "")
         add(menu, "Automatically Install Updates", #selector(toggleAutoUpdate), "").state = updater.automatic ? .on : .off
         add(menu, "Launch at Login", #selector(toggleLaunchAtLogin), "").state =
@@ -136,6 +139,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         store.activeID = id
         engine.invalidate()
         settings?.sendInit()
+    }
+
+    @objc private func openWhatsNew() {
+        if whatsNew == nil { whatsNew = WhatsNewWindowController(engine: engine) }
+        whatsNew?.show()
     }
 
     @objc private func checkForUpdates() { Task { await updater.check(userInitiated: true) } }

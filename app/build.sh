@@ -21,6 +21,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/"
 cp Info.plist "$APP/Contents/"
 cp -R Resources/web Resources/templates Resources/AppIcon.icns "$APP/Contents/Resources/"
+cp ../CHANGELOG.md "$APP/Contents/Resources/web/ui/CHANGELOG.md"   # shown in What's New
 codesign --force --sign - "$APP"
 echo "Built $APP"
 

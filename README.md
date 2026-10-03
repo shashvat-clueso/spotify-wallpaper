@@ -41,6 +41,8 @@ with sliders or rewrite completely.
 
 <p align="center"><img src="docs/screenshots/customize.jpg" width="85%" alt="The Customize window"></p>
 
+See what changed in each version in the **[changelog](CHANGELOG.md)**, or in the app under **What's New…**.
+
 ## Install
 
 1. Download **Spotify-Wallpaper-x.y.zip** from the [latest release](../../releases/latest) and unzip it.
@@ -74,6 +76,7 @@ Everything is in the ♪ menu bar icon:
 | **Pause Wallpaper** | Put your normal wallpaper back until you resume |
 | **Open Templates Folder** | Where your own templates live |
 | **Launch at Login** | Start automatically |
+| **What's New…** | The changelog; it also opens once after each update |
 | **Check for Updates…** | Look for a new release now. Turn **Automatically Install Updates** on or off |
 
 ## Make your own templates
