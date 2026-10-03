@@ -224,6 +224,11 @@
       const raw = evaluate(el.dataset.bind, ctx), v = raw == null ? "" : String(raw);
       if (el.textContent !== v) el.textContent = v;
     }
+    // data-template="Now playing {{track.title}} · {{time.clock}}": text with variables (pipes work too)
+    for (const el of document.querySelectorAll("[data-template]")) {
+      const v = el.dataset.template.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, expr) => { const r = evaluate(expr, ctx); return r == null ? "" : String(r); });
+      if (el.textContent !== v) el.textContent = v;
+    }
     // data-cover-blur="<px>" (+ optional data-cover-saturate): the cover, blurred once by the app, as a background
     for (const el of document.querySelectorAll("[data-cover-blur]")) {
       const r = Math.max(0, Math.round(+evaluate(el.dataset.coverBlur, ctx) || 0));
@@ -353,6 +358,31 @@
     if (!el.querySelector(":scope > .fill")) el.appendChild(Object.assign(document.createElement("div"), { className: "fill" }));
   }
 
+  // ---------- time-driven animations ----------
+  // An element with data-follow="song|line|seconds|minutes|hours|day" and a CSS animation gets that animation's
+  // timeline mapped onto the song, the current line, or the clock: 0% at the start, 100% at the end. The browser
+  // plays it on the compositor between syncs, so it costs nothing per frame.
+
+  const CLOCK_PERIOD = { seconds: 60, minutes: 3600, hours: 43200, day: 86400 };
+  function syncFollow(ctx, playing) {
+    const lines = ctx.lyrics.lines, i = ctx.lyrics.index;
+    const lineLength = i >= 0 && i + 1 < lines.length ? lines[i + 1].t - lines[i].t : Math.max(1, (ctx.track.duration || 0) - (lines[i] ? lines[i].t : 0));
+    const now = new Date(), wall = (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds() + now.getMilliseconds() / 1000);
+    for (const el of document.querySelectorAll("[data-follow]")) {
+      const mode = el.dataset.follow;
+      for (const anim of el.getAnimations()) {
+        let duration, at, loop = false, run = playing;
+        if (mode === "song") { duration = ctx.track.duration || 1; at = ctx.track.position || 0; }
+        else if (mode === "line") { duration = lineLength; at = i >= 0 ? ctx.time.line : 0; }
+        else if (CLOCK_PERIOD[mode]) { duration = CLOCK_PERIOD[mode]; at = wall % duration; loop = true; run = !paused; }
+        else continue;
+        anim.effect.updateTiming({ duration: Math.max(1, duration * 1000), iterations: loop ? Infinity : 1, fill: "both", easing: "linear" });
+        anim.currentTime = Math.max(0, at * 1000);
+        if (run && live) anim.play(); else anim.pause();
+      }
+    }
+  }
+
   // ---------- render ----------
 
   function applyAll(ctx) {
@@ -405,6 +435,7 @@
     await ready;
     const ctx = derive(payload);
     applyAll(ctx);
+    syncFollow(ctx, false);  // stills show time-driven animations at this moment
     await settle(ctx);
     layoutAll(ctx);
     await sleep(30);
@@ -523,6 +554,7 @@
       }
     }
     for (const w of document.querySelectorAll("wave-form")) bobWaves(w, playing);
+    syncFollow(ctx, playing);
     document.documentElement.classList.toggle("sw-paused", paused);
   }
 

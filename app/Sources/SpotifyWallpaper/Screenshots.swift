@@ -41,6 +41,12 @@ enum Screenshots {
         if let image = await builder.snapshot(), let jpeg = jpegData(image, quality: 0.86) {
             try? jpeg.write(to: dir.appendingPathComponent("builder.jpg"))
         }
+        // Follow time: the analog clock starter with its seconds hand selected
+        _ = await builder.evaluate("B.design = clone(STARTERS.find(s => s.name === 'Analog Clock').design); renderAll(); select('sec'); document.getElementById('inspector').scrollTop = 99999; true")
+        try? await Task.sleep(for: .seconds(2))
+        if let image = await builder.snapshot(), let jpeg = jpegData(image, quality: 0.86) {
+            try? jpeg.write(to: dir.appendingPathComponent("builder-follow.jpg"))
+        }
         // Edit Code: the canvas turns the open design into a standalone HTML template
         let exported = await builder.evaluate("""
             new Promise(r => { addEventListener('message', e => { if (e.data && e.data.type === 'sw:exported') r(e.data.html); });

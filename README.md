@@ -81,14 +81,19 @@ Everything is in the ♪ menu bar icon:
 ### Without code: the Template Builder
 
 Open **Template Builder…** from the menu, or **＋** in Customize, and start from a layout (Blank, Spotlight, Glass Card,
-Headline, Record Room, Clock).
+Headline, Record Room, Analog Clock, Clock).
 
 - **Tools** (bar under the canvas): Move (V), Text (T), Rectangle (R), Ellipse (O), Line (L), Triangle, Star,
   Polygon, Arrow, Image (I), Lyrics (Y), Album Cover (C), Vinyl Record, Progress Bar, Waveform and Color Swatches.
   Pick a tool and drag on the canvas to draw it, or click for a default size. Drop images from Finder onto the canvas.
 - **Text** can show the song title, artist, album, the current/next/previous lyric, times, a live **clock** or the
-  **date**, or your own words.
-- **Canvas:** the song that's playing, at the shape of each of your screens. Drag to move, pull the handles to resize
+  **date**, or your own words with variables mixed in, e.g. `Now playing {{track.title}} · {{time.clock}}` (the **＋**
+  next to the text field lists every variable).
+- **Follow time:** make any layer rotate, move, grow or fade with the **song's progress**, **each lyric line**, or
+  the **real clock** (seconds, minutes, hours), with a pivot point, so you can build things like analog clock hands
+  or an element that travels across the screen as the song plays. The Analog Clock starter shows how.
+- **Canvas:** the song that's playing, at the size of each of your screens or of common displays (MacBook Air/Pro,
+  iMac, Studio Display, Pro Display XDR, 1080p, 1440p, 1600p, 4K, ultrawide, super-ultrawide, portrait). Drag to move, pull the handles to resize
   (⇧ keeps proportions), with snapping to the center and other layers (⌥ to place freely) and size readouts.
 - **Layers:** drag to reorder, double-click to rename, hide and lock. Right-click a layer for arrange, copy, paste,
   duplicate and delete.
@@ -104,6 +109,9 @@ ultrawide. Designs are saved as normal templates in the templates folder, so the
 
 <p align="center">
   <img src="docs/screenshots/builder.jpg" width="85%" alt="The Template Builder">
+</p>
+<p align="center">
+  <img src="docs/screenshots/builder-follow.jpg" width="85%" alt="Follow time: analog clock hands driven by the real clock">
 </p>
 <p align="center">
   <img src="docs/screenshots/builder-glass-card.jpg" width="49%" alt="Glass Card starter">
@@ -148,7 +156,9 @@ Settings declared in `manifest.json` show up as controls automatically:
 
 You get track data (`track.title`, `track.progress`, …), lyrics (`lyrics.current`, `lyrics.next1`,
 `lyrics.lineProgress`, …), time (`time.song`, `time.line`, `time.clock`, `time.date`, and `--song-time` /
-`--line-time` CSS variables for time-driven animation), cover colors (`--vibrant`, `--dominant`, `--p0`…`--p5`, …), smart components
+`--line-time` CSS variables), time-driven animation (`data-follow="song | line | seconds | minutes | hours"` maps a
+CSS animation onto the song, the current line or the clock, on the GPU), text with variables
+(`data-template="{{track.title}} · {{time.clock}}"`), cover colors (`--vibrant`, `--dominant`, `--p0`…`--p5`, …), smart components
 (`<lyrics-block>`, `<fit-text>`, `<swatch-row>`, `<wave-form>`, `<progress-bar>`) and animation hooks. The full
 reference is in **[TEMPLATE_GUIDE.md](app/Resources/web/TEMPLATE_GUIDE.md)**, which is also copied into your
 templates folder.

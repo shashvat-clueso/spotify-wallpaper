@@ -114,6 +114,25 @@
   ${L.blend && L.blend !== "normal" ? `mix-blend-mode: ${L.blend};` : ""}${filters.length ? ` filter: ${filters.join(" ")};` : ""} }`;
   }
 
+  /** Follow time: animate one property from → to across the song, each lyric line, or the clock. */
+  const FOLLOW_PROPS = {
+    rotate: (v) => `rotate(${v}deg)`,
+    moveX: (v) => `translateX(${v}vw)`,
+    moveY: (v) => `translateY(${v}vh)`,
+    scale: (v) => `scale(${v})`,
+  };
+  const ORIGINS = { center: "50% 50%", bottom: "50% 100%", top: "50% 0%", left: "0% 50%", right: "100% 50%" };
+  function followCSS(id, L, css) {
+    if (!L.follow || L.follow === "none") return;
+    const prop = L.followProp || "rotate";
+    const from = num(L.followFrom, prop === "scale" ? 1 : prop === "opacity" ? 0 : 0);
+    const to = num(L.followTo, prop === "rotate" ? 360 : prop === "scale" ? 1.5 : prop === "opacity" ? 1 : 20);
+    const kf = prop === "opacity" ? [`opacity: ${from};`, `opacity: ${to};`] : [`transform: ${FOLLOW_PROPS[prop](from)};`, `transform: ${FOLLOW_PROPS[prop](to)};`];
+    css.push(`@keyframes b-follow-${L.id} { from { ${kf[0]} } to { ${kf[1]} } }
+${id} > .b-follow { width: 100%; height: 100%; transform-origin: ${ORIGINS[L.followOrigin] || ORIGINS.center};
+  animation: b-follow-${L.id} 1s linear both paused; }`);
+  }
+
   /** Looping motion on a layer's content (live layer only; stills stay put). */
   const MOTION = {
     spin: { kf: "to { transform: rotate(360deg); }", easing: "linear", dir: "normal" },
@@ -126,9 +145,10 @@
   function motionCSS(id, L, css) {
     const m = MOTION[L.motion];
     if (!m) return;
+    const sel = L.follow && L.follow !== "none" ? "> .b-follow > *" : "> *";  // loops go inside a time-driven wrapper
     css.push(`@keyframes b-${L.motion} { ${m.kf} }
-.sw-live ${id} > * { animation: b-${L.motion} ${num(L.motionSpeed, 3)}s ${m.easing} infinite ${m.dir}; will-change: transform, opacity; }`);
-    if (L.motionPlaying !== false) css.push(`.sw-live:not(.is-playing) ${id} > * { animation-play-state: paused; }`);
+.sw-live ${id} ${sel} { animation: b-${L.motion} ${num(L.motionSpeed, 3)}s ${m.easing} infinite ${m.dir}; will-change: transform, opacity; }`);
+    if (L.motionPlaying !== false) css.push(`.sw-live:not(.is-playing) ${id} ${sel} { animation-play-state: paused; }`);
   }
 
   function strokeCSS(L) {
@@ -142,12 +162,15 @@
     const id = "#b-" + L.id;
     css.push(frameCSS(id, L, index));
     motionCSS(id, L, css);
+    followCSS(id, L, css);
 
     switch (L.type) {
       case "text": {
         const fit = !!L.fit;
         const tag = fit ? "fit-text" : "div";
-        const bind = L.content && L.content !== "custom" ? ` data-bind="${esc(L.content)}"` : "";
+        const custom = !L.content || L.content === "custom";
+        const templated = custom && /\{\{/.test(L.text || "");
+        const bind = !custom ? ` data-bind="${esc(L.content)}"` : templated ? ` data-template="${esc(L.text)}"` : "";
         const anim = L.animate ? " data-animate" : "";
         const fitAttrs = fit ? ` max-lines="${num(L.lines, 1)}" min="1vmin" max="${num(L.size, 5)}vmin"` : "";
         el.innerHTML = `<${tag} class="b-text"${bind}${anim}${fitAttrs}>${bind ? "" : esc(L.text || "")}</${tag}>`;
@@ -238,6 +261,15 @@ ${id} .hex { color: ${col(L.labelColor, "#fff")}; }`);
         break;
       }
     }
+    if (L.follow && L.follow !== "none") {
+      const wrap = document.createElement("div");
+      wrap.className = "b-follow";
+      wrap.dataset.follow = L.follow;
+      wrap.append(...el.childNodes);
+      el.appendChild(wrap);
+      // flex/alignment rules written for the layer box apply to the wrapper's content too
+      css.push(`#b-${L.id} > .b-follow { display: inherit; flex-direction: inherit; align-items: inherit; justify-content: inherit; }`);
+    }
     return el;
   }
 
@@ -280,7 +312,28 @@ ${id} .hex { color: ${col(L.labelColor, "#fff")}; }`);
 <head>
 <meta charset="utf-8">
 <!-- Exported from the Template Builder. Edit anything; it reloads on your desktop when you save.
-     Bindings, components and variables are documented in TEMPLATE_GUIDE.md in the templates folder. -->
+     Full reference: TEMPLATE_GUIDE.md in the templates folder.
+
+     DATA (data-bind="…", or {{…}} inside data-template="…"; pipes: |upper |lower |note |time |pct)
+       track.title  track.artist  track.album  track.cover  track.duration  track.position  track.progress (0–1)
+       track.elapsed  track.remaining  track.length  track.isPlaying
+       lyrics.current  lyrics.next1  lyrics.next2  lyrics.prev1  lyrics.lineProgress (0–1)  lyrics.hasLyrics
+       time.song  time.line (seconds into the song / line)  time.clock  time.clock24  time.date  time.day
+       time.hour  time.minute  time.second   colors.vibrant  colors.dominant  colors.dark  colors.light …
+
+     TIME-DRIVEN ANIMATION (runs on the GPU)
+       data-follow="song | line | seconds | minutes | hours | day" on an element with a CSS animation maps the
+       animation onto the song, the current line, or the clock (0% = start, 100% = end), e.g.
+         <div class="hand" data-follow="seconds"></div>
+         .hand { animation: tick 1s linear both paused; transform-origin: 50% 100%; }
+         @keyframes tick { to { transform: rotate(360deg); } }
+
+     CSS VARIABLES
+       --vibrant --dominant --card --deep --dark --light --muted --paper --p0…--p5 --cover-url
+       Per-frame (updated only if your CSS uses them): --progress --line-progress --song-time --line-time --time
+       --hour --minute --second
+
+     JS HOOKS: Wallpaper.on("render" | "line" | "tick" | "frame", ctx => …)   ctx has everything listed above -->
 <link rel="stylesheet" href="/runtime/runtime.css">
 <script src="/runtime/runtime.js"></script>
 <style>

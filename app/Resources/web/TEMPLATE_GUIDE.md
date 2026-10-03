@@ -69,6 +69,7 @@ Use `vmin`/`vw`/`vh` units so it adapts to both laptop and ultrawide screens.
 ### Attributes
 
 - `data-bind="track.title"` sets the text. Add pipes: `|upper`, `|lower`, `|note` (empty → `• • •`), `|time`, `|pct`.
+- `data-template="Now playing {{track.title}} · {{time.clock}}"` mixes variables into text (pipes work inside `{{ }}`).
 - `data-src="track.cover"` sets `src` on an image.
 - `data-show="lyrics.hasLyrics"` hides the element when false. Prefix `!` to invert.
 - `data-attr-<name>="expr"` sets any attribute, e.g. `data-attr-after="params.linesAfter"`.
@@ -149,6 +150,21 @@ Wallpaper.on("frame", (ctx) => { /* live layer: every frame; only add this if yo
 ```
 
 ### Animating with time
+
+**`data-follow`** maps an element's CSS animation onto time. 0% of the animation is the start and 100% the end of:
+`song` (the song; pauses with the music), `line` (the current lyric line; restarts each line), or the real clock:
+`seconds` (every minute), `minutes` (every hour), `hours` (every 12 hours), `day`. It runs on the GPU, so it's free.
+
+```html
+<div class="second-hand" data-follow="seconds"></div>
+<div class="progress-dot" data-follow="song"></div>
+<style>
+  .second-hand { animation: turn 1s linear both paused; transform-origin: 50% 100%; }
+  .progress-dot { animation: across 1s linear both paused; }
+  @keyframes turn { to { transform: rotate(360deg); } }
+  @keyframes across { from { transform: translateX(0); } to { transform: translateX(80vw); } }
+</style>
+```
 
 - Loops: plain CSS `@keyframes` under `.sw-live`. Pause them with the music using
   `.sw-live:not(.is-playing) .thing { animation-play-state: paused; }`.

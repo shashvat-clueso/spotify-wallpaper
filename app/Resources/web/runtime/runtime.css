@@ -74,6 +74,9 @@ progress-bar .fill { position: absolute; inset: 0; background: currentColor; bor
 .sw-kara { display: none; }
 .sw-live .sw-kara { display: block; position: absolute; inset: 0; overflow: hidden; pointer-events: none; will-change: transform; }
 .sw-kara-text { display: block; width: 100%; height: 100%; color: var(--karaoke-on, #fff); will-change: transform; }
+/* time-driven animations (data-follow) are positioned by the runtime, never free-running */
+[data-follow] { animation-play-state: paused; will-change: transform, opacity; }
+
 /* covered desktop: everything stops */
 .sw-paused * { animation-play-state: paused !important; }
 

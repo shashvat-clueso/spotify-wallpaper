@@ -5,7 +5,9 @@ body { display: grid; grid-template-rows: var(--bar) 1fr; }
   border: 1px solid transparent; background: transparent; outline: 0; }
 .name-input:hover { background: var(--field); }
 .name-input:focus { background: var(--panel); border-color: var(--blue); }
-.screens button { padding: 0 10px; flex: none; }
+.screen-pick { width: 300px; }
+.screen-pick select { font-weight: 500; }
+.var-menu { max-height: 360px; overflow: auto; }
 
 .workspace { display: grid; grid-template-columns: 240px 1fr 284px; min-height: 0; }
 .left { border-right: 1px solid var(--line); }

@@ -61,9 +61,21 @@ const ICON = {
 const B = {
   id: null, name: "My Template", design: null, state: null, sel: null, hover: null,
   undo: [], redo: [], lastUndoKey: null, lastUndoAt: 0,
-  screens: [{ name: "Laptop 16:10", width: 1512, height: 982 }, { name: "Ultrawide 21:9", width: 3440, height: 1440 }],
+  screens: [],
   screen: 0, saved: true, saving: false, autosave: null, tool: "move", clipboard: null, replaceTarget: null,
 };
+
+/** Display sizes to preview at (points). Your own screens are added on top. */
+const PRESET_SCREENS = [
+  { name: 'MacBook Air 13"', width: 1470, height: 956 }, { name: 'MacBook Air 15"', width: 1710, height: 1112 },
+  { name: 'MacBook Pro 14"', width: 1512, height: 982 }, { name: 'MacBook Pro 16"', width: 1728, height: 1117 },
+  { name: 'iMac 24"', width: 2240, height: 1260 }, { name: "Studio Display 27\"", width: 2560, height: 1440 },
+  { name: "Pro Display XDR", width: 3008, height: 1692 }, { name: "1080p monitor (16:9)", width: 1920, height: 1080 },
+  { name: "1440p monitor (16:9)", width: 2560, height: 1440 }, { name: "1600p monitor (16:10)", width: 2560, height: 1600 },
+  { name: "4K monitor (16:9)", width: 3840, height: 2160 }, { name: "Ultrawide (21:9)", width: 3440, height: 1440 },
+  { name: "Super ultrawide (32:9)", width: 5120, height: 1440 }, { name: "Portrait monitor (9:16)", width: 1080, height: 1920 },
+];
+B.screens = PRESET_SCREENS.slice();
 
 const TYPES = {
   text: { label: "Text", ic: "text" }, lyrics: { label: "Lyrics", ic: "lyrics" }, cover: { label: "Album Cover", ic: "cover" },
@@ -90,10 +102,34 @@ const CONTENT = [["custom", "Custom text"], ["track.title", "Song title"], ["tra
   ["lyrics.current|note", "Current lyric"], ["lyrics.next1", "Next lyric"], ["lyrics.prev1", "Previous lyric"],
   ["track.elapsed", "Time played"], ["track.remaining", "Time left"], ["track.length", "Song length"],
   ["time.clock", "Clock (12-hour)"], ["time.clock24", "Clock (24-hour)"], ["time.date", "Date"], ["time.day", "Weekday"]];
+/** Everything a Text layer can show with {{…}}. */
+const VARIABLES = [
+  ["Song", [["track.title", "Title"], ["track.artist", "Artist"], ["track.album", "Album"], ["track.elapsed", "Time played"],
+    ["track.remaining", "Time left"], ["track.length", "Length"], ["track.progress|pct", "Progress %"]]],
+  ["Lyrics", [["lyrics.current|note", "Current line"], ["lyrics.next1", "Next line"], ["lyrics.prev1", "Previous line"]]],
+  ["Time", [["time.clock", "Clock (12-hour)"], ["time.clock24", "Clock (24-hour)"], ["time.date", "Date"], ["time.day", "Weekday"],
+    ["time.hour", "Hour"], ["time.minute", "Minute"], ["time.song|time", "Song time (m:ss)"], ["time.line", "Seconds into line"]]],
+];
+
 const AUTO = [["vibrant", "Vibrant"], ["dominant", "Dominant"], ["card", "Card"], ["deep", "Deep"], ["dark", "Dark"], ["light", "Light"],
   ["muted", "Muted"], ["paper", "Paper"], ["onDominant", "Text on dominant"]];
 const WEIGHTS = [[100, "Thin"], [200, "Extra Light"], [300, "Light"], [400, "Regular"], [500, "Medium"], [600, "Semibold"], [700, "Bold"], [800, "Heavy"], [900, "Black"]];
 const BLENDS = ["normal", "multiply", "screen", "overlay", "soft-light", "hard-light", "difference", "color-dodge", "color-burn", "luminosity"];
+const FOLLOW_MODES = [["none", "Off"], ["song", "Song progress"], ["line", "Each lyric line"], ["seconds", "Clock · every minute (seconds hand)"],
+  ["minutes", "Clock · every hour (minutes hand)"], ["hours", "Clock · every 12 hours (hours hand)"], ["day", "Clock · every day"]];
+const FOLLOW_PROPS = [["rotate", "Rotate"], ["moveX", "Move sideways"], ["moveY", "Move up/down"], ["scale", "Grow / shrink"], ["opacity", "Fade"]];
+const FOLLOW_DEFAULTS = {
+  rotate: { followFrom: 0, followTo: 360 }, moveX: { followFrom: 0, followTo: 20 }, moveY: { followFrom: 0, followTo: -10 },
+  scale: { followFrom: 1, followTo: 1.5 }, opacity: { followFrom: 0.2, followTo: 1 },
+};
+const FOLLOW_HINT = {
+  song: "Goes from “from” at the start of the song to “to” at the end, and pauses with the music.",
+  line: "Restarts at every lyric line and reaches “to” when the next line starts.",
+  seconds: "Turns like a seconds hand: a full cycle every minute, following the real clock.",
+  minutes: "A full cycle every hour, following the real clock.",
+  hours: "A full cycle every 12 hours, following the real clock.",
+  day: "A full cycle every day, following the real clock.",
+};
 const MOTIONS = [["none", "None"], ["spin", "Spin"], ["pulse", "Pulse"], ["float", "Float"], ["sway", "Sway"], ["breathe", "Breathe"], ["blink", "Blink"]];
 
 // ---------- starters ----------
@@ -134,6 +170,17 @@ const STARTERS = [
       { ...DEFAULTS.text, id: "t1", x: 54, y: 14, w: 40, h: 5, size: 3, content: "track.title" },
       { ...DEFAULTS.text, id: "t2", x: 54, y: 19.5, w: 40, h: 4, size: 2.2, weight: 500, content: "track.artist", opacity: 0.6 },
       { ...DEFAULTS.lyrics, id: "l1", x: 54, y: 28, w: 40, h: 60, size: 4.4 }] } },
+  { name: "Analog Clock", desc: "Clock hands that follow real time", thumb: "radial-gradient(circle,#2b2b30 45%,#0e0e10 46%)", design: {
+    background: { type: "cover-blur", blur: 140, dim: 0.62, grain: true },
+    layers: [
+      { ...DEFAULTS.shape, id: "face", kind: "ellipse", x: 33.8, y: 18, w: 32.4, h: 50, fillType: "solid", fill: "rgba(255,255,255,0.08)", glass: 30, borderWidth: 0.25, borderColor: "rgba(255,255,255,0.35)", radius: 0 },
+      { ...DEFAULTS.shape, id: "hour", kind: "line", x: 49.5, y: 31, w: 1, h: 12, fill: "#FFFFFF", radius: 99, follow: "hours", followProp: "rotate", followFrom: 0, followTo: 360, followOrigin: "bottom" },
+      { ...DEFAULTS.shape, id: "min", kind: "line", x: 49.65, y: 24, w: 0.7, h: 19, fill: "#FFFFFF", radius: 99, follow: "minutes", followProp: "rotate", followFrom: 0, followTo: 360, followOrigin: "bottom" },
+      { ...DEFAULTS.shape, id: "sec", kind: "line", x: 49.85, y: 22, w: 0.3, h: 21, fill: "auto:vibrant", radius: 99, follow: "seconds", followProp: "rotate", followFrom: 0, followTo: 360, followOrigin: "bottom" },
+      { ...DEFAULTS.shape, id: "pin", kind: "ellipse", x: 49.4, y: 42, w: 1.2, h: 1.9, fill: "#FFFFFF", radius: 0 },
+      { ...DEFAULTS.text, id: "t1", x: 15, y: 74, w: 70, h: 6, content: "custom", text: "{{track.title}} · {{track.artist}}", size: 2.4, weight: 600, align: "center" },
+      { ...DEFAULTS.text, id: "t2", x: 15, y: 80, w: 70, h: 8, content: "lyrics.current|note", size: 3.4, weight: 700, align: "center", animate: true },
+      { ...DEFAULTS.progress, id: "p1", x: 40, y: 90, w: 20, h: 0.5, follow: "none" }] } },
   { name: "Clock", desc: "A big clock with the song below", thumb: "linear-gradient(160deg,#5b4a8a,#1c1830)", design: {
     background: { type: "gradient", colorA: "auto:vibrant", colorB: "auto:dark", angle: 160, grain: false },
     layers: [
@@ -150,9 +197,7 @@ window.App = {
     if (m.type === "init") {
       B.state = m.state;
       if (m.screens && m.screens.length) {
-        const real = m.screens.map((s) => ({ name: s.name, width: s.width, height: s.height }));
-        const same = (a, b) => Math.abs(a.width / a.height - b.width / b.height) < 0.02;
-        B.screens = [...real, ...B.screens.filter((s) => !real.some((r) => same(r, s)))];
+        B.screens = [...m.screens.map((s) => ({ name: s.name, width: s.width, height: s.height, mine: true })), ...PRESET_SCREENS];
       }
       if (m.id) { B.id = m.id; B.name = m.name || B.name; }
       $("name").value = B.name;
@@ -190,7 +235,7 @@ function toast(text) {
 // ---------- title bar: tell the app which parts are controls (the rest drags the window) ----------
 
 function reportTitlebarHoles() {
-  const rects = [...$("topbar").querySelectorAll("button, input, .seg")].map((el) => {
+  const rects = [...$("topbar").querySelectorAll("button, input, .seg, .field")].map((el) => {
     const r = el.getBoundingClientRect();
     return { x: r.left, y: r.top, w: r.width, h: r.height };
   });
@@ -232,15 +277,21 @@ function sendLive() {
 }
 
 function renderScreens() {
-  const box = $("screens");
-  box.innerHTML = "";
+  const sel = $("screens");
+  sel.innerHTML = "";
+  const mine = h("optgroup"); mine.label = "Your displays";
+  const others = h("optgroup"); others.label = "Other display sizes";
   B.screens.forEach((s, i) => {
-    const b = h("button", i === B.screen ? "on" : "", s.name);
-    b.onclick = () => { B.screen = i; renderScreens(); layoutCanvas(); sendLive(); renderOverlay(); };
-    box.appendChild(b);
+    const o = new Option(`${s.name}  —  ${Math.round(s.width)} × ${Math.round(s.height)}`, i);
+    (s.mine ? mine : others).appendChild(o);
   });
+  if (mine.children.length) sel.appendChild(mine);
+  sel.appendChild(others);
+  sel.value = B.screen;
   reportTitlebarHoles();
 }
+$("screens").onchange = () => { B.screen = +$("screens").value; layoutCanvas(); sendLive(); renderOverlay(); };
+$("screenIcon").innerHTML = P('<rect x="2" y="3" width="12" height="8" rx="1"/><path d="M6 13.5h4M8 11v2.5"/>');
 
 // ---------- editing ----------
 
@@ -535,7 +586,7 @@ function openMenu(anchor, items, dir, x, y) {
     m.style.top = Math.min(innerHeight - mr.height - 8, y) + "px";
   }
 }
-function closeMenu() { $("menu").hidden = true; }
+function closeMenu() { $("menu").hidden = true; $("menu").classList.remove("var-menu"); }
 window.addEventListener("mousedown", (e) => { if (!$("menu").contains(e.target)) closeMenu(); }, true);
 
 function layerMenu(L, x, y) {
@@ -946,14 +997,37 @@ function renderInspector() {
   ef.appendChild(sliderRow("Layer blur", L.blur || 0, { min: 0, max: 40, step: 0.5, decimals: 1 }, set("blur")));
   if (L.type === "shape") ef.appendChild(sliderRow("Background blur (frosted glass)", L.glass || 0, { min: 0, max: 80, step: 1, decimals: 0 }, set("glass")));
 
-  // motion
+  // motion: a loop, and/or following time
   const mo = section(box, "Motion");
+  mo.appendChild(h("div", "label", "Loop"));
   mo.appendChild(selectField(MOTIONS, L.motion || "none", set("motion", true)));
   if (L.motion && L.motion !== "none") {
     mo.appendChild(sliderRow("Seconds per cycle", L.motionSpeed ?? 3, { min: 0.3, max: 20, step: 0.1, decimals: 1 }, set("motionSpeed")));
     mo.appendChild(toggleRow("Only while music plays", L.motionPlaying !== false, set("motionPlaying")));
   }
   if (L.type === "text") mo.appendChild(toggleRow("Animate in on each new line", L.animate, set("animate")));
+
+  const ft = section(box, "Follow time");
+  ft.appendChild(selectField(FOLLOW_MODES, L.follow || "none", set("follow", true)));
+  if (L.follow && L.follow !== "none") {
+    const prop = L.followProp || "rotate";
+    ft.appendChild(spaced(selectField(FOLLOW_PROPS, prop, (v) => commit(() => {
+      L.followProp = v;
+      Object.assign(L, FOLLOW_DEFAULTS[v]);
+    }, null, true))));
+    const unit = { rotate: "°", moveX: "% w", moveY: "% h", scale: "×", opacity: "" }[prop];
+    const g = spaced(h("div", "grid2"));
+    g.append(numField("from", L.followFrom ?? FOLLOW_DEFAULTS[prop].followFrom, { step: prop === "scale" || prop === "opacity" ? 0.05 : 1, suffix: unit, decimals: 2 }, set("followFrom")),
+      numField("to", L.followTo ?? FOLLOW_DEFAULTS[prop].followTo, { step: prop === "scale" || prop === "opacity" ? 0.05 : 1, suffix: unit, decimals: 2 }, set("followTo")));
+    ft.appendChild(g);
+    if (prop === "rotate" || prop === "scale") {
+      ft.appendChild(h("div", "label", "Pivot"));
+      ft.appendChild(segField([["center", "Center"], ["bottom", "Bottom"], ["top", "Top"], ["left", "Left"], ["right", "Right"]], L.followOrigin || "center", set("followOrigin", true)));
+    }
+    ft.appendChild(spaced(h("div", "hint", FOLLOW_HINT[L.follow])));
+  } else {
+    ft.appendChild(spaced(h("div", "hint", "Move, turn, grow or fade this layer with the song's progress, each lyric line, or the clock.")));
+  }
 }
 
 function typography(box, L, set) {
@@ -977,7 +1051,32 @@ function typography(box, L, set) {
 function textInspector(box, L, set) {
   const c = section(box, "Content");
   c.appendChild(selectField(CONTENT, L.content || "custom", set("content", true)));
-  if ((L.content || "custom") === "custom") c.appendChild(spaced(textField(L.text, set("text"), "text")));
+  if ((L.content || "custom") === "custom") {
+    const tf = spaced(textField(L.text, set("text"), "text"));
+    const input = tf.querySelector("input");
+    const add = h("button", "icon-btn");
+    add.innerHTML = ICON.plus;
+    add.title = "Insert a variable: song, lyrics or time";
+    add.style.width = add.style.height = "22px";
+    add.onclick = (e) => {
+      e.preventDefault();
+      const items = [];
+      VARIABLES.forEach(([group, vars], gi) => {
+        if (gi) items.push("-");
+        for (const [v, label] of vars) items.push({ label: `${group} · ${label}`, run: () => {
+          const pos = input.selectionStart ?? input.value.length;
+          const text = input.value.slice(0, pos) + `{{${v}}}` + input.value.slice(input.selectionEnd ?? pos);
+          input.value = text;
+          set("text")(text);
+        } });
+      });
+      openMenu(add, items, "down");
+      $("menu").classList.add("var-menu");
+    };
+    tf.appendChild(add);
+    c.appendChild(tf);
+    c.appendChild(spaced(h("div", "hint", "Type {{ }} around a variable to mix it into your text, e.g. Now playing {{track.title}} · {{time.clock}}")));
+  }
   if (String(L.content).startsWith("time.")) c.appendChild(spaced(h("div", "hint", "Updates live on your desktop.")));
   const ty = typography(box, L, set);
   ty.appendChild(h("div", "label", "Vertical alignment"));
