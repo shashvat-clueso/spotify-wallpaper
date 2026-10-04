@@ -24,6 +24,7 @@
   fit-text.title {
     font-family: var(--param-titleFont); font-style: italic; font-weight: 400;
     line-height: 0.92; letter-spacing: -0.01em; width: 100%;
+    overflow: visible; overflow-wrap: normal; word-break: normal;  /* shrink rather than split words; keep descenders */
   }
   .artist {
     font-family: var(--param-artistFont); color: var(--param-accent);
@@ -40,9 +41,9 @@
     -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent); }
   lyrics-block .line {
     font-family: var(--param-lyricFont); font-size: calc(var(--param-lyricSize) * 0.62); line-height: 1.25;
-    margin-bottom: 1.6vmin; opacity: calc(0.62 - var(--dist) * 0.12);
+    margin-bottom: 1.6vmin; opacity: calc(0.78 - var(--dist) * 0.12);
   }
-  lyrics-block .past { opacity: 0.32; font-style: italic; }
+  lyrics-block .past { opacity: 0.45; font-style: italic; }
   lyrics-block .current { font-size: var(--param-lyricSize); opacity: 1; font-weight: 500; }
   .sw-live lyrics-block .lines { transition-duration: 0.9s; transition-timing-function: cubic-bezier(.3, .1, .2, 1); }
   .empty { font-family: var(--param-lyricFont); font-style: italic; font-size: 3vmin; opacity: 0.7; }

@@ -12,7 +12,7 @@
 
   let p, g, studio, W = 0, H = 0, u = 1;
   let cov = { at: () => [128, 128, 128] }, pal = null, style = "night", side = "left", panel = null;
-  let painted = false, paintKey = "", pending = null, spawn = 0, sinceGround = 0;
+  let painted = false, paintKey = "", pending = null, spawn = 0, sinceQuiet = 0;
 
   const ready = new Promise((resolve) => {
     new p5((sk) => {
@@ -36,12 +36,22 @@
   /** The box around the text actually shown (title to last lyric), plus a margin. */
   function readPanel() {
     const els = [...document.querySelectorAll(".panel > *")].filter((e) => e.offsetParent && e.getBoundingClientRect().height > 0);
-    const rs = els.map((e) => e.getBoundingClientRect()), m = u * 2;
+    const rs = els.map((e) => e.getBoundingClientRect()), m = u * 4.5;
     if (!rs.length) { panel = { x0: -1, x1: -1, y0: -1, y1: -1 }; return; }
     panel = { x0: Math.min(...rs.map((r) => r.left)) - m, x1: Math.max(...rs.map((r) => r.right)) + m,
               y0: Math.min(...rs.map((r) => r.top)) - m, y1: Math.max(...rs.map((r) => r.bottom)) + m };
   }
-  const inPanel = (x, y, pad = 0) => x > panel.x0 - pad && x < panel.x1 + pad && y > panel.y0 - pad && y < panel.y1 + pad;
+  /** How far (px) a point is inside the text's field; negative outside. The edge is ragged, like a painted edge. */
+  function zoneDepth(x, y) {
+    // a rounded box (signed distance, positive inside) with a wide, slow wobble, so the field reads as a cloud of
+    // calm paint rather than a rectangle; styles with a frame keep it tighter
+    const r = u * 9, cx = (panel.x0 + panel.x1) / 2, cy = (panel.y0 + panel.y1) / 2;
+    const qx = Math.abs(x - cx) - (panel.x1 - panel.x0) / 2 + r, qy = Math.abs(y - cy) - (panel.y1 - panel.y0) / 2 + r;
+    const sdf = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+    const amp = (STYLES[style] && STYLES[style].edge) ?? 1;
+    return -sdf + ((p.noise(x * .0035, y * .0035, 7.7) - .5) * u * 16 + (p.noise(x * .02, y * .02, 3.1) - .5) * u * 3) * amp;
+  }
+  const inPanel = (x, y, pad = 0) => zoneDepth(x, y) > -pad;
   /** A random point in [x0,x1]×[y0,y1] (fractions, before mirroring) that is clear of the text panel. */
   function spot(x0 = 0, x1 = 1, y0 = 0, y1 = 1, pad = 0) {
     for (let i = 0; i < 30; i++) {
@@ -65,13 +75,22 @@
   /** Runs fn now (instant paint) or after `delay` seconds of painting time (gradual). */
   function later(delay, fn) { if (delay <= 0) fn(); else setTimeout(fn, delay * studio.tempo * 1000); }
 
-  // ---------- the painted ground under the text ----------
-  function ground(spread, color, alpha = .92) {
-    const n = Math.round(((panel.x1 - panel.x0) * (panel.y1 - panel.y0)) / (u * u * 15));
+  // ---------- the quiet field the text sits in ----------
+  // Part of the composition, not an overlay: long, calm strokes in one dark tone (paper for ink). Busy strokes stop
+  // at its ragged edge through studio.mask, so the text always has a clean ground whatever the cover looks like.
+  function quietColor(s) {
+    let c = s.quietColor();
+    if (style !== "ink") { const L = B.lum(c); if (L > 30) c = c.map((v) => v * 30 / L); }
+    return c;
+  }
+  function quiet(spread, s, alpha = .96, count) {
+    const base = quietColor(s), w = panel.x1 - panel.x0, h = panel.y1 - panel.y0;
+    const n = count ?? Math.round((w + u * 16) * (h + u * 16) / (u * u * 4));
+    const out = (x, y) => zoneDepth(x, y) < -u * 1.2;  // calm strokes stay just inside the field's edge
     for (let i = 0; i < n; i++) {
-      const y = rand(panel.y0, panel.y1), x = rand(panel.x0 - u * 4, panel.x1 - u * 4);
-      studio.stroke({ x, y, a: rand(-.12, .12), turn: rand(-.01, .01), size: u * rand(4, 7.5), color: shade(color, rand(-8, 8)),
-        len: 12, step: u * 1.1, dry: .35, alpha, jitter: 10, delay: spread ? spread * .55 + rand(spread * .45) : 0, duration: rand(1.6, 2.6) });
+      const y = rand(panel.y0 - u * 8, panel.y1 + u * 8), x = rand(panel.x0 - u * 9, panel.x1 + u * 4);
+      studio.stroke({ x, y, a: rand(-.06, .06) + (Math.random() < .5 ? 0 : Math.PI), turn: rand(-.004, .004), size: u * rand(3, 6), color: shade(base, rand(-7, 7)), mask: out,
+        len: (rand(10, 20)) | 0, step: u * 1.4, dry: .3, alpha, jitter: 6, delay: spread ? rand(spread * .7) : 0, duration: rand(2, 3.4), ease: "inOut" });
     }
   }
 
@@ -81,7 +100,7 @@
   // ---- Swirling Night (after Van Gogh): the cover is the moon ----
   STYLES.night = {
     bg: () => pal.night,
-    groundColor: () => pal.night,
+    quietColor: () => pal.night,
     setup() {
       const m = Math.min(W, H);
       this.moon = { x: X(.8), y: H * .26, r: m * .14 };
@@ -158,7 +177,7 @@
   // ---- Impasto Jungle (after Rousseau): the cover smeared into oil, leaves and flowers over it ----
   STYLES.jungle = {
     bg: () => pal.deep,
-    groundColor: () => mix(pal.deep, pal.dark, .4),
+    quietColor: () => mix(pal.deep, [0, 0, 0], .45),
     setup() { this.seed = rand(100); },
     field(x, y) { return p.noise(x * .0028, y * .0028, this.seed) * TAU * 2.2; },
     under(size, len, alpha, delay, duration, avoid) {
@@ -211,7 +230,8 @@
   // ---- Ink, Wave & Gold (after Hokusai): dry brush on paper, the cover inside an ensō ----
   STYLES.ink = {
     bg: () => pal.paper,
-    groundColor: () => pal.paper,
+    quietColor: () => pal.paper,
+    edge: .8,
     setup() {
       this.inkC = mix(pal.deep, [8, 8, 12], .55);
       this.gold = mix([...pal.p].sort((a, b) => (b[0] + b[1] - 2 * b[2]) - (a[0] + a[1] - 2 * a[2]))[0], [214, 172, 72], .55);
@@ -259,7 +279,7 @@
       for (let i = 0; i < 10; i++) studio.dab(x + rand(-1, 1) * s * .4, y + rand(-1, 1) * s * .4, s * rand(.5, .9), col, { alpha: .95, delay: i * .04 });
       later(.45, () => {
         g.fillStyle = B.css(col);
-        for (let i = 0; i < 70; i++) { const a = rand(TAU), d = s * (.6 + Math.pow(Math.random(), 2) * 3.2), r = Math.max(1, s * .09 * (1 - d / (s * 4)) * rand(.5, 1.5)); if (inPanel(x + Math.cos(a) * d, y + Math.sin(a) * d)) continue; g.globalAlpha = rand(.7, 1); g.beginPath(); g.ellipse(x + Math.cos(a) * d, y + Math.sin(a) * d, r * 1.4, r, a, 0, TAU); g.fill(); }
+        for (let i = 0; i < 70; i++) { const a = rand(TAU), d = s * (.6 + Math.pow(Math.random(), 2) * 3.2), r = Math.max(1, s * .09 * (1 - d / (s * 4)) * rand(.5, 1.5)); if (inPanel(x + Math.cos(a) * d, y + Math.sin(a) * d, u * 2)) continue; g.globalAlpha = rand(.7, 1); g.beginPath(); g.ellipse(x + Math.cos(a) * d, y + Math.sin(a) * d, r * 1.4, r, a, 0, TAU); g.fill(); }
         g.globalAlpha = 1;
       });
       for (let i = 0; i < 3; i++) studio.stroke({ x: x + rand(-s, s) * .4, y: y + s * .3, a: Math.PI / 2 + rand(-.05, .05), size: s * .12, color: col, len: (rand(8, 20)) | 0, step: s * .12, dry: .2, alpha: .9, delay: .6, duration: rand(1.5, 2.5), ease: "out" });
@@ -293,7 +313,8 @@
   // ---- Paisley Tapestry (1970s psychedelia): a mandala grows out of the cover ----
   STYLES.tapestry = {
     bg: () => pal.night,
-    groundColor: () => pal.night,
+    quietColor: () => pal.night,
+    edge: .15,
     setup() { this.rot = (rand(6)) | 0; this.ring = 0; this.c = { x: X(.68), y: H * .5, r0: H * .12 }; this.clock = 0; this.ribbonClock = 0; },
     disc(spread) {
       const { x: cx, y: cy, r0 } = this.c;
@@ -341,6 +362,17 @@
       if (this.ribbonClock > 10) { this.ribbonClock = 0; this.ribbon(0); }
     },
     bloom() { const [x, y] = spot(.4, 1, 0, 1, u * 6); this.paisley(x, y, u * rand(4, 7.5), rand(TAU), 0); },
+    /** A cartouche: a beaded border painted around the text's field. */
+    frame(spread) {
+      const m = u * 2.2, x0 = panel.x0 - m, x1 = panel.x1 + m, y0 = panel.y0 - m, y1 = panel.y1 + m;
+      const per = 2 * (x1 - x0 + y1 - y0), n = Math.round(per / (u * 1.5));
+      for (let i = 0; i < n; i++) {
+        let d = i / n * per, x, y;
+        if (d < x1 - x0) { x = x0 + d; y = y0; } else if ((d -= x1 - x0) < y1 - y0) { x = x1; y = y0 + d; }
+        else if ((d -= y1 - y0) < x1 - x0) { x = x1 - d; y = y1; } else { d -= x1 - x0; x = x0; y = y1 - d; }
+        studio.dab(x, y, u * (i % 4 === 0 ? 1.3 : .8), i % 4 === 0 ? pal.vibrant : i % 2 ? pal.light : pal.p[(i >> 1) % 6], { free: true, delay: spread * .8 + (i / n) * 3 });
+      }
+    },
   };
 
   // ================= painting =================
@@ -352,13 +384,18 @@
     s.setup();
     if (!gradual) {
       g.globalAlpha = 1; g.fillStyle = B.css(s.bg()); g.fillRect(0, 0, W, H);
+      studio.mask = null;
+      quiet(0, s);
+      studio.finish();
+      studio.mask = (x, y) => zoneDepth(x, y) > 0;
       s.compose(0);
       studio.finish();
-      ground(0, s.groundColor(), style === "ink" ? .55 : .5);
-      studio.finish();
+      if (s.frame) { s.frame(0); studio.finish(); }
     } else {
+      studio.mask = (x, y) => zoneDepth(x, y) > 0;
+      quiet(14, s);
       s.compose(22);
-      ground(22, s.groundColor(), style === "ink" ? .55 : .5);
+      if (s.frame) s.frame(22);
     }
     painted = true;
   }
@@ -409,11 +446,8 @@
     if (ctx && ctx.track.isPlaying) {
       (STYLES[style] || STYLES.night).ambient(dt);
       // keep the panel under the text clean: a fresh pass of ground every so often
-      if ((sinceGround += dt) > 5) {
-        sinceGround = 0;
-        const s = STYLES[style] || STYLES.night;
-        for (let i = 0; i < 2; i++) studio.stroke({ x: rand(panel.x0 - u * 4, panel.x1 - u * 6), y: rand(panel.y0, panel.y1), a: rand(-.1, .1), size: u * rand(4, 7), color: s.groundColor(), len: 12, step: u * 1.1, dry: .4, alpha: .18, duration: 3 });
-      }
+      // the field breathes too: now and then a calm stroke goes over it
+      if ((sinceQuiet += dt) > 2.5) { sinceQuiet = 0; quiet(0, STYLES[style] || STYLES.night, .5, 1); }
     }
     studio.update(dt);
   }

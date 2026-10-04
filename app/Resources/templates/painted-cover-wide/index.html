@@ -1,0 +1,50 @@
+<!doctype html>
+<html data-layout="wide">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<script src="/runtime/vendor/p5.min.js"></script>
+<script src="/runtime/brush.js"></script>
+<script src="/runtime/cover-painter.js"></script>
+<style>
+  body { background: var(--param-field); color: var(--param-ink); font-family: var(--param-font); overflow: hidden; }
+  canvas.paint { position: fixed; inset: 0; width: 100vw !important; height: 100vh !important; z-index: 0; }
+
+  /* a flat, solid panel over the full-screen painting */
+  .panel {
+    position: absolute; z-index: 2; top: 7vh; bottom: 7vh; left: 5vw; width: min(38vw, 88vmin); box-sizing: border-box;
+    padding: 6vmin 5vmin; background: var(--param-field);
+    display: flex; flex-direction: column; justify-content: flex-end;
+  }
+  html[data-side="right"] .panel { left: auto; right: 5vw; }
+
+  fit-text.title { font-weight: 700; letter-spacing: -0.035em; line-height: 0.92; width: 100%;
+    overflow: visible; overflow-wrap: normal; word-break: normal; }  /* shrink rather than split words; keep descenders */
+  .artist { font-weight: 500; font-size: 3.2vmin; letter-spacing: -0.01em; color: var(--param-accent); margin-top: 2.8vmin;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { display: flex; align-items: center; gap: 1.6vmin; margin: 3vmin 0 3.4vmin; font-size: 1.4vmin; font-weight: 500;
+    letter-spacing: 0.08em; text-transform: uppercase; font-variant-numeric: tabular-nums; opacity: 0.7; }
+  .meta progress-bar { flex: 1; height: 0.22vmin; color: currentColor; background: color-mix(in srgb, currentColor 22%, transparent); }
+
+  lyrics-block { height: 34vh; width: 100%; -webkit-mask-image: linear-gradient(to bottom, #000 74%, transparent); }
+  lyrics-block .line { font-size: calc(var(--param-lyricSize) * 0.56); font-weight: 400; line-height: 1.22; letter-spacing: -0.005em;
+    margin-bottom: 1.5vmin; opacity: calc(0.72 - var(--dist) * 0.12); }
+  lyrics-block .past { opacity: 0.38; }
+  lyrics-block .current { font-size: var(--param-lyricSize); font-weight: 700; letter-spacing: -0.025em; line-height: 1.08; opacity: 1; }
+  .sw-live lyrics-block .lines { transition-duration: 0.7s; transition-timing-function: cubic-bezier(.3, .1, .2, 1); }
+  .empty { font-size: 2.6vmin; font-weight: 500; opacity: 0.6; }
+  .sw-grain { opacity: 0.12; z-index: 3; }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <fit-text class="title" max-lines="3" min="5vmin" max="12vmin" data-bind="track.title"></fit-text>
+    <div class="artist" data-bind="track.artist"></div>
+    <div class="meta"><span data-bind="track.elapsed"></span><progress-bar></progress-bar><span data-bind="track.length"></span></div>
+    <lyrics-block layout="top" data-attr-before="params.linesBefore" data-attr-after="params.linesAfter"></lyrics-block>
+    <div class="empty" data-show="!lyrics.hasLyrics" data-bind="track.album"></div>
+  </div>
+  <div class="sw-grain" data-show="params.grain"></div>
+</body>
+</html>

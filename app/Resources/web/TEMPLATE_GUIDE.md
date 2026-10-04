@@ -183,8 +183,13 @@ cover is served from the page's own origin, so a canvas can read its pixels.
   pace is the same at any refresh rate. `studio.tempo = 2` halves the speed of everything queued after it.
 - `studio.finish()` paints everything queued right away. Use it for stills: they're one frame, so paint the whole
   picture inside a `Wallpaper.hold(...)`.
-- `Brush.cover(url)` resolves to `{ at(fx, fy) → [r, g, b] }`, sampling the cover; `Brush.rgb`, `mix`, `shade`
+- `studio.knife({ x, y, a, len, width, color, ridge, delay, duration })` is a sharp, flat palette-knife stroke.
+- `studio.mask = (x, y) => bool` keeps strokes out of an area (they lift at its edge; `free: true` strokes ignore it),
+  and `studio.clip = { x, y, w, h }` draws everything inside a rectangle.
+- `Brush.cover(url, size)` resolves to a sampler of the cover: `at(fx, fy)` → `[r, g, b]`, `box(fx0, fy0, fx1, fy1)` →
+  `{ color, dev }` (average and how much detail), `grad(fx, fy)` → the edge direction. `Brush.rgb`, `mix`, `shade`
   help with the palette.
+- `/runtime/cover-painter.js` repaints the cover as a knife painting; see the **Painted Cover** templates.
 - Stop the loop when `Wallpaper.live` is false or `Wallpaper.paused` is true (`p.noLoop()`), and cap it with
   `p.frameRate(Math.min(Wallpaper.fps || 30, 30))`. The **Brushwork** template is a full example.
 
