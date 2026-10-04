@@ -213,6 +213,15 @@ See what every lyrics source returns for a song, and the combined timing:
 "app/build/Spotify Wallpaper.app/Contents/MacOS/SpotifyWallpaper" --lyrics "Blinding Lights" "The Weeknd" "After Hours" 200
 ```
 
+### Releasing
+
+Merging to `main` releases automatically: [`.github/workflows/release.yml`](.github/workflows/release.yml) builds the
+universal app on a macOS runner and publishes a GitHub release, and installed copies update themselves from it.
+
+- To pick the version, set it in `app/Info.plist` (e.g. `1.5.0`). Otherwise the patch number is bumped.
+- Add a `## <version>` section to `CHANGELOG.md`; it becomes the release notes and shows in **What's New**.
+- Only changes under `app/` (or the changelog) trigger a release. You can also run it from the Actions tab.
+
 README screenshots are generated with the bundled sample song:
 
 ```sh

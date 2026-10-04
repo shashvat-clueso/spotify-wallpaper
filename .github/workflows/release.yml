@@ -1,0 +1,68 @@
+# Builds the app and publishes a GitHub release on every merge to main that changes the app.
+# Installed copies of the app check the latest release and update themselves.
+#
+# Version: if app/Info.plist has a newer version than the latest release, that version is released;
+# otherwise the patch number of the latest release is bumped (1.4.0 → 1.4.1).
+# Notes: the matching section of CHANGELOG.md, or the commits since the last release.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "CHANGELOG.md"
+      - ".github/workflows/release.yml"
+      - ".github/scripts/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-26
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pick the version
+        id: version
+        run: |
+          plist=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" app/Info.plist)
+          latest_tag=$(gh release view --json tagName --jq .tagName 2>/dev/null || true)
+          latest=${latest_tag#v}
+          latest=${latest:-0.0.0}
+          if [ "$(printf '%s\n%s\n' "$plist" "$latest" | sort -V | tail -1)" = "$plist" ] && [ "$plist" != "$latest" ]; then
+            version=$plist
+          else
+            IFS=. read -r major minor patch <<< "$latest"
+            version="$major.$minor.$((patch + 1))"
+          fi
+          echo "Latest release: ${latest_tag:-none}  Info.plist: $plist  →  releasing $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "previous=$latest_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.version.outputs.version }}" \
+                                  -c "Set :CFBundleVersion ${{ github.run_number }}" app/Info.plist
+          cd app && ./build.sh release
+          lipo -archs "build/Spotify Wallpaper.app/Contents/MacOS/SpotifyWallpaper"
+          codesign --verify --deep --strict "build/Spotify Wallpaper.app"
+
+      - name: Release notes
+        run: python3 .github/scripts/release_notes.py "${{ steps.version.outputs.version }}" "${{ steps.version.outputs.previous }}" > notes.md
+
+      - name: Publish
+        run: |
+          v="${{ steps.version.outputs.version }}"
+          gh release create "v$v" "app/build/Spotify-Wallpaper-$v.zip" \
+            --title "Spotify Wallpaper $v" --notes-file notes.md --target "$GITHUB_SHA"
