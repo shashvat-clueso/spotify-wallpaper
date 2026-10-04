@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<script src="/runtime/vendor/p5.min.js"></script>
+<script src="/runtime/brush.js"></script>
+<script src="sketch.js"></script>
+<style>
+  body { background: var(--deep); color: var(--param-ink); overflow: hidden; }
+  html[data-style="ink"] body { background: var(--paper); }
+  canvas.paint { position: fixed; inset: 0; width: 100vw !important; height: 100vh !important; z-index: 0; }
+
+  /* the text sits on a panel the sketch paints behind it (see ground() in sketch.js) */
+  .panel {
+    position: absolute; z-index: 2; left: 6vw; width: min(40vw, 92vmin); top: 11vh; bottom: 11vh;
+    display: flex; flex-direction: column; justify-content: center;
+    text-shadow: 0 0.15vmin 0.5vmin rgba(0, 0, 0, 0.55), 0 0 2.6vmin rgba(0, 0, 0, 0.45);
+  }
+  html[data-side="right"] .panel { left: auto; right: 6vw; text-align: right; align-items: flex-end; }
+  html[data-style="ink"] .panel { color: var(--dark); text-shadow: 0 0 1.6vmin color-mix(in srgb, var(--paper) 90%, transparent), 0 0 .5vmin var(--paper); }
+
+  fit-text.title {
+    font-family: var(--param-titleFont); font-style: italic; font-weight: 400;
+    line-height: 0.92; letter-spacing: -0.01em; width: 100%;
+    overflow: visible; overflow-wrap: normal; word-break: normal;  /* shrink rather than split words; keep descenders */
+  }
+  .artist {
+    font-family: var(--param-artistFont); color: var(--param-accent);
+    font-size: 5.6vmin; line-height: 1.15; margin-top: 1.2vmin;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+    filter: brightness(1.35) saturate(1.1);
+  }
+  html[data-style="ink"] .artist { filter: brightness(0.75) saturate(1.2); }
+  .rule { display: flex; align-items: center; gap: 1.6vmin; margin: 2.6vmin 0 3vmin; width: 100%; opacity: 0.85;
+    font-family: var(--param-lyricFont); font-size: 1.7vmin; letter-spacing: 0.24em; text-transform: uppercase; }
+  .rule progress-bar { flex: 1; height: 0.25vmin; color: currentColor; background: color-mix(in srgb, currentColor 25%, transparent); }
+
+  lyrics-block { height: 36vh; width: 100%;
+    -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent); }
+  lyrics-block .line {
+    font-family: var(--param-lyricFont); font-size: calc(var(--param-lyricSize) * 0.62); line-height: 1.25;
+    margin-bottom: 1.6vmin; opacity: calc(0.78 - var(--dist) * 0.12);
+  }
+  lyrics-block .past { opacity: 0.45; font-style: italic; }
+  lyrics-block .current { font-size: var(--param-lyricSize); opacity: 1; font-weight: 500; }
+  .sw-live lyrics-block .lines { transition-duration: 0.9s; transition-timing-function: cubic-bezier(.3, .1, .2, 1); }
+  .empty { font-family: var(--param-lyricFont); font-style: italic; font-size: 3vmin; opacity: 0.7; }
+  .sw-grain { opacity: 0.16; z-index: 3; }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <fit-text class="title" max-lines="2" min="5vmin" max="14vmin" data-bind="track.title"></fit-text>
+    <div class="artist" data-bind="track.artist"></div>
+    <div class="rule"><span data-bind="track.elapsed"></span><progress-bar></progress-bar><span data-bind="track.length"></span></div>
+    <lyrics-block layout="top" data-attr-before="params.linesBefore" data-attr-after="params.linesAfter"></lyrics-block>
+    <div class="empty" data-show="!lyrics.hasLyrics" data-bind="track.album"></div>
+  </div>
+  <div class="sw-grain" data-show="params.grain"></div>
+</body>
+</html>

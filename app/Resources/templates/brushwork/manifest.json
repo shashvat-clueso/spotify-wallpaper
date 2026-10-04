@@ -1,0 +1,27 @@
+{
+  "name": "Brushwork",
+  "description": "A living oil painting made from the cover with p5.js brushes: a swirling night, a jungle, ink and gold, or a paisley tapestry. The title, artist and lyrics sit on a painted panel, and every new line adds something to the picture.",
+  "author": "Built-in",
+  "params": [
+    { "key": "style", "type": "select", "label": "Painting", "default": "night",
+      "options": [
+        { "value": "night", "label": "Swirling Night" },
+        { "value": "jungle", "label": "Impasto Jungle" },
+        { "value": "ink", "label": "Ink, Wave & Gold" },
+        { "value": "tapestry", "label": "Paisley Tapestry" }
+      ] },
+    { "key": "side", "type": "select", "label": "Text side", "default": "left",
+      "options": [{ "value": "left", "label": "Left" }, { "value": "right", "label": "Right" }] },
+    { "key": "speed", "type": "number", "label": "Painting speed", "min": 0.25, "max": 2, "step": 0.05, "default": 0.6 },
+    { "key": "bloom", "type": "bool", "label": "Paint something on every lyric line", "default": true },
+    { "key": "titleFont", "type": "font", "label": "Title font", "default": "Didot" },
+    { "key": "artistFont", "type": "font", "label": "Artist font", "default": "Snell Roundhand" },
+    { "key": "lyricFont", "type": "font", "label": "Lyrics font", "default": "New York" },
+    { "key": "ink", "type": "color", "label": "Text", "default": "auto:light" },
+    { "key": "accent", "type": "color", "label": "Artist", "default": "auto:vibrant" },
+    { "key": "lyricSize", "type": "number", "label": "Lyric size", "min": 2.5, "max": 7, "step": 0.1, "unit": "vmin", "default": 4.2 },
+    { "key": "linesBefore", "type": "int", "label": "Lines before", "min": 0, "max": 4, "default": 1 },
+    { "key": "linesAfter", "type": "int", "label": "Lines after", "min": 0, "max": 6, "default": 3 },
+    { "key": "grain", "type": "bool", "label": "Canvas grain", "default": true }
+  ]
+}

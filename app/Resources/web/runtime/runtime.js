@@ -38,6 +38,15 @@
     ctx: null,
     /// Promises the first render waits for (e.g. the Builder renderer building the page from design.json).
     waits: [],
+    /// Promises the current render waits for before layout and the still snapshot (e.g. a sketch loading the cover).
+    holds: [],
+    hold(promise) { Wallpaper.holds.push(Promise.resolve(promise).catch(() => {})); return promise; },
+    /// true on the animated desktop layer, false while rendering a still
+    get live() { return !!live; },
+    /// true while the desktop is covered (everything should stop)
+    get paused() { return paused; },
+    /// the app's Refresh Rate setting; 0 = every display frame
+    get fps() { return (live && +live.fps) || 0; },
     on(event, fn) { (listeners[event] = listeners[event] || []).push(fn); },
     /// Re-apply the current state after the page's DOM was rebuilt.
     refresh() {
@@ -411,6 +420,7 @@
       waits.push(img.decode().catch(() => {}));
     }
     await Promise.all(waits);
+    while (Wallpaper.holds.length) await Promise.all(Wallpaper.holds.splice(0));
   }
 
   const ready = new Promise((resolve) => {
@@ -460,7 +470,7 @@
   // A per-frame loop only runs for templates that ask for it (Wallpaper.on("frame") or per-frame CSS variables).
 
   const LEAD = 0.1;  // seconds a line shows before its timestamp
-  let live = null, liveDirty = false, liveIdx = null, paused = false;
+  let live = null, liveDirty = false, liveIdx = null, paused = false, liveTrackID = null;
   let lineTimer = null, tickTimer = null, looping = false, lastFrame = 0;
   const liveAnims = [];
 
@@ -504,6 +514,7 @@
       applyAll(ctx);
       layoutAll(ctx);
       scanUsedVars();
+      if (firstForTrack && ctx.track.id !== liveTrackID) { liveTrackID = ctx.track.id; emit("track", ctx); }
       if (lineChanged) { restartEnterAnimations(); emit("line", ctx); }
       if (firstForTrack) settle(ctx).then(() => live && layoutAll(Wallpaper.ctx));
     } else {
@@ -615,10 +626,12 @@
       liveAnims.forEach((a) => a.pause());
       document.getAnimations().forEach((a) => a.pause());
       document.documentElement.classList.add("sw-paused");
+      emit("pause");
     } else {
       document.documentElement.classList.remove("sw-paused");
       document.getAnimations().forEach((a) => a.play());
       liveUpdate();
+      emit("resume");
     }
   }
 

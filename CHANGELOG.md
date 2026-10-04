@@ -2,6 +2,24 @@
 
 All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](https://semver.org).
 
+## 1.4.0 — 2026-10-04
+
+### Added
+- **Brushwork** template: a living oil painting made from the cover with p5.js bristle brushes, in four styles
+  (Swirling Night, Impasto Jungle, Ink, Wave & Gold, Paisley Tapestry). The title, artist and synced lyrics sit on a
+  calm field of paint that the busy strokes stop at, so the text reads on any cover; every new lyric line adds a
+  star, a flower, an ink splash or a paisley. A new song is painted over the
+  old one slowly, and the still wallpaper is the finished painting. Settings for painting speed, text side and fonts.
+- **Painted Cover** and **Painted Cover Wide** templates: the cover itself repainted as a coarse knife painting in
+  sharp, flat strokes that follow the image's edges, with the song set in Helvetica Neue beside it (or on a solid
+  panel over a full-screen painting). Detail grows as the song plays (or stays fixed), a new song is painted over the
+  last one coarse to fine, and each lyric line repaints a band.
+- For code templates: p5.js 1.9.4 (`/runtime/vendor/p5.min.js`), a brush library (`/runtime/brush.js`) with eased,
+  time-based bristle and knife strokes, masks and clipping, and cover sampling (colour, detail, edge direction), and
+  `/runtime/cover-painter.js`, the engine behind the Painted Cover templates.
+- Runtime hooks: `track`, `pause` and `resume` events, `Wallpaper.live`, `Wallpaper.paused`, `Wallpaper.fps`, and
+  `Wallpaper.hold(promise)` to make a still wait for async work such as painting.
+
 ## 1.3.2 — 2026-10-03
 
 ### Added

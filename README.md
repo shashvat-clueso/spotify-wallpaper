@@ -24,9 +24,11 @@ with sliders or rewrite completely.
 - **The real wallpaper stays in sync.** On every track change the app also sets your actual wallpaper to a still of
   the song, so the lock screen and Mission Control match. When you quit, or nothing is playing, your own wallpaper
   comes back.
-- **Eight built-in templates:** Lyric Card (Spotify lyric cards), Album Poster (minimalist posters with color swatches),
+- **Eleven built-in templates:** Lyric Card (Spotify lyric cards), Album Poster (minimalist posters with color swatches),
   Minimal, Glow (Apple Music style), Vinyl (a spinning record with the cover as its label), Typewriter (lyrics type
-  themselves out), Lock Screen (big live clock) and Visualizer (bars in the cover's colors).
+  themselves out), Lock Screen (big live clock), Visualizer (bars in the cover's colors), Brushwork (a living oil
+  painting made from the cover with p5.js brushes) and Painted Cover / Painted Cover Wide (the cover repainted in
+  sharp knife strokes, with the song in Helvetica).
 - **Light on your Mac:** about 1–5% CPU while animating at 60 fps. Lines change on timers set for their exact
   timestamps, animations run on the GPU, the cover is blurred once per song, and everything pauses when windows cover
   the desktop.

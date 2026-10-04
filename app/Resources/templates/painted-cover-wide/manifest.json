@@ -1,0 +1,124 @@
+{
+  "name": "Painted Cover Wide",
+  "description": "The cover repainted full-screen as a coarse knife painting in sharp, flat strokes, with the song on a solid panel in Helvetica. Detail grows as the song plays.",
+  "author": "Built-in",
+  "params": [
+    {
+      "key": "side",
+      "type": "select",
+      "label": "Text side",
+      "default": "left",
+      "options": [
+        {
+          "value": "left",
+          "label": "Left"
+        },
+        {
+          "value": "right",
+          "label": "Right"
+        }
+      ]
+    },
+    {
+      "key": "detail",
+      "type": "select",
+      "label": "Detail",
+      "default": "grow",
+      "options": [
+        {
+          "value": "grow",
+          "label": "Grows with the song"
+        },
+        {
+          "value": "fixed",
+          "label": "Fixed"
+        }
+      ]
+    },
+    {
+      "key": "level",
+      "type": "int",
+      "label": "Fixed detail (1 coarse – 3 fine)",
+      "min": 1,
+      "max": 3,
+      "default": 2
+    },
+    {
+      "key": "speed",
+      "type": "number",
+      "label": "Painting speed",
+      "min": 0.25,
+      "max": 2,
+      "step": 0.05,
+      "default": 0.7
+    },
+    {
+      "key": "refine",
+      "type": "bool",
+      "label": "Repaint a band on every lyric line",
+      "default": true
+    },
+    {
+      "key": "ridge",
+      "type": "bool",
+      "label": "Paint ridges on strokes",
+      "default": true
+    },
+    {
+      "key": "font",
+      "type": "font",
+      "label": "Font",
+      "default": "Helvetica Neue"
+    },
+    {
+      "key": "field",
+      "type": "color",
+      "label": "Background",
+      "default": "auto:dark"
+    },
+    {
+      "key": "ink",
+      "type": "color",
+      "label": "Text",
+      "default": "auto:light"
+    },
+    {
+      "key": "accent",
+      "type": "color",
+      "label": "Artist",
+      "default": "auto:vibrant"
+    },
+    {
+      "key": "lyricSize",
+      "type": "number",
+      "label": "Lyric size",
+      "min": 2.5,
+      "max": 7,
+      "step": 0.1,
+      "unit": "vmin",
+      "default": 4.4
+    },
+    {
+      "key": "linesBefore",
+      "type": "int",
+      "label": "Lines before",
+      "min": 0,
+      "max": 4,
+      "default": 1
+    },
+    {
+      "key": "linesAfter",
+      "type": "int",
+      "label": "Lines after",
+      "min": 0,
+      "max": 6,
+      "default": 3
+    },
+    {
+      "key": "grain",
+      "type": "bool",
+      "label": "Grain",
+      "default": false
+    }
+  ]
+}
