@@ -26,7 +26,7 @@ final class TemplateStore {
     private(set) var templates: [WallpaperTemplate] = []
     private let paths: Paths
     private let defaults = UserDefaults.standard
-    private static let builtinOrder = ["card", "poster", "minimal", "glow", "vinyl", "typewriter", "lockscreen", "visualizer"]
+    private static let builtinOrder = ["card", "poster", "minimal", "glow", "vinyl", "typewriter", "lockscreen", "visualizer", "brushwork"]
 
     init(paths: Paths) {
         self.paths = paths

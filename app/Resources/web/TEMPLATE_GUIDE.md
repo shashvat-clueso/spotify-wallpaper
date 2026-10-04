@@ -147,7 +147,46 @@ Wallpaper.on("layout", (ctx) => { /* runs after fonts/images load and components
 Wallpaper.on("line", (ctx) => { /* live layer: a new lyric line just started */ });
 Wallpaper.on("tick", (ctx) => { /* live layer: once a second (clocks, counters) */ });
 Wallpaper.on("frame", (ctx) => { /* live layer: every frame; only add this if you really need it */ });
+Wallpaper.on("track", (ctx) => { /* live layer: a new song started */ });
+Wallpaper.on("pause", () => { /* live layer: the desktop got covered; stop everything */ });
+Wallpaper.on("resume", () => { /* live layer: the desktop is visible again */ });
 ```
+
+`Wallpaper.live` is true on the animated layer and false while a still is rendered, `Wallpaper.paused` is true while
+the desktop is covered, and `Wallpaper.fps` is the app's Refresh Rate setting (0 = display maximum).
+`Wallpaper.hold(promise)` makes the current render wait for the promise before layout and the still snapshot, e.g.
+while a sketch loads the cover and paints.
+
+### Canvas and p5.js
+
+The runtime ships [p5.js](https://p5js.org) 1.9.4 and a painterly brush, so templates can draw generative art. The
+cover is served from the page's own origin, so a canvas can read its pixels.
+
+```html
+<script src="/runtime/vendor/p5.min.js"></script>
+<script src="/runtime/brush.js"></script>
+<script>
+  let studio, cover;
+  new p5((p) => {
+    p.setup = () => { p.createCanvas(innerWidth, innerHeight); studio = Brush.studio(p); };
+    p.draw = () => studio.update(p.deltaTime / 1000);
+  });
+  Wallpaper.on("render", (ctx) => Wallpaper.hold(Brush.cover(ctx.track.cover).then((c) => { cover = c; })));
+  Wallpaper.on("line", () => studio.stroke({ x: 200, y: 200, size: 40, color: cover.at(0.5, 0.5), len: 20, field: () => 0.3 }));
+</script>
+```
+
+- `Brush.studio(p)` returns a painter. `studio.stroke({ x, y, a, size, color, len, step, turn, field, alpha, dry,
+  delay, duration, ease })` queues a bristle stroke that paints itself over `duration` seconds with an ease-in-out
+  hand (`ease`: `hand`, `inOut`, `out`, `in`, `linear`). `field(x, y)` returns the direction at each step;
+  `studio.dab(x, y, size, color)` is a short touch. Call `studio.update(dt)` from `draw`; it is time-based, so the
+  pace is the same at any refresh rate. `studio.tempo = 2` halves the speed of everything queued after it.
+- `studio.finish()` paints everything queued right away. Use it for stills: they're one frame, so paint the whole
+  picture inside a `Wallpaper.hold(...)`.
+- `Brush.cover(url)` resolves to `{ at(fx, fy) → [r, g, b] }`, sampling the cover; `Brush.rgb`, `mix`, `shade`
+  help with the palette.
+- Stop the loop when `Wallpaper.live` is false or `Wallpaper.paused` is true (`p.noLoop()`), and cap it with
+  `p.frameRate(Math.min(Wallpaper.fps || 30, 30))`. The **Brushwork** template is a full example.
 
 ### Animating with time
 
