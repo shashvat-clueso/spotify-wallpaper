@@ -110,6 +110,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rates.addItem(note)
         rate.submenu = rates
         menu.addItem(rate)
+        add(menu, "Use Weather", #selector(toggleWeather), "").state = engine.useWeather ? .on : .off
+        add(menu, "Sync to the Beat (needs Screen Recording)", #selector(toggleBeatSync), "").state = engine.beatSync ? .on : .off
         add(menu, engine.paused ? "Resume Wallpaper" : "Pause Wallpaper", #selector(togglePause), "")
         menu.addItem(.separator())
         add(menu, "Open Templates Folder", #selector(openTemplatesFolder), "")
@@ -237,6 +239,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func togglePause() { engine.paused.toggle() }
+
+    @objc private func toggleWeather() { engine.useWeather.toggle() }
+
+    @objc private func toggleBeatSync() { engine.beatSync.toggle() }
 
     @objc private func openTemplatesFolder() { NSWorkspace.shared.open(paths.userTemplates) }
 

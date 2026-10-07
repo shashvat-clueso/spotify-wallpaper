@@ -24,6 +24,10 @@
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Spotify Wallpaper reads what's playing in Spotify so it can draw the song onto your wallpaper.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>Spotify Wallpaper uses your approximate location to show the local weather and daylight on your wallpaper.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Spotify Wallpaper uses your approximate location to show the local weather and daylight on your wallpaper.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>
