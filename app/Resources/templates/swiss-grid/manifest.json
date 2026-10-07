@@ -1,0 +1,17 @@
+{
+  "name": "Swiss Grid",
+  "description": "The lyric is the poster: set huge on a twelve-column grid, words rising one by one, the cover cropped to a disc that bleeds off the corner.",
+  "author": "Built-in",
+  "params": [
+    { "key": "paper", "type": "color", "label": "Paper", "default": "#EFEFEA" },
+    { "key": "ink", "type": "color", "label": "Ink", "default": "#111111" },
+    { "key": "accent", "type": "color", "label": "Accent", "default": "auto:vibrant" },
+    { "key": "font", "type": "font", "label": "Typeface", "default": "Helvetica Neue" },
+    { "key": "maxSize", "type": "number", "label": "Largest lyric size", "min": 4, "max": 16, "step": 0.5, "unit": "vw", "default": 7.2 },
+    { "key": "case", "type": "select", "label": "Lyric case", "default": "lower",
+      "options": [{ "value": "lower", "label": "lower case" }, { "value": "none", "label": "As written" }, { "value": "upper", "label": "UPPER CASE" }] },
+    { "key": "disc", "type": "select", "label": "Cover", "default": "disc",
+      "options": [{ "value": "disc", "label": "Disc" }, { "value": "square", "label": "Square" }, { "value": "none", "label": "Hidden" }] },
+    { "key": "gridlines", "type": "bool", "label": "Show the grid", "default": true }
+  ]
+}

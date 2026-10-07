@@ -1,0 +1,14 @@
+{
+  "name": "Film Strip",
+  "description": "The cover as frames on a strip of 35 mm film, each cropped differently. The strip advances a frame every line, under a yellow cinema subtitle.",
+  "author": "Built-in",
+  "params": [
+    { "key": "subtitle", "type": "color", "label": "Subtitle", "default": "#FFE14D" },
+    { "key": "edge", "type": "color", "label": "Edge printing", "default": "#E8902F" },
+    { "key": "base", "type": "color", "label": "Film base", "default": "#221A14" },
+    { "key": "subtitleSize", "type": "number", "label": "Subtitle size", "min": 2, "max": 6, "step": 0.1, "unit": "vmin", "default": 3.9 },
+    { "key": "subtitleFont", "type": "font", "label": "Subtitle font", "default": "Helvetica Neue" },
+    { "key": "translations", "type": "bool", "label": "Show translations", "default": true },
+    { "key": "grain", "type": "bool", "label": "Film grain", "default": true }
+  ]
+}

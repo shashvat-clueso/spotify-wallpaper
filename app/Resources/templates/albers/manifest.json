@@ -1,0 +1,15 @@
+{
+  "name": "Albers",
+  "description": "The cover reduced to its four strongest colours, nested as squares in Homage to the Square proportions. Every line, the colours slowly trade places.",
+  "author": "Built-in",
+  "params": [
+    { "key": "order", "type": "select", "label": "Colour order", "default": "dark-out",
+      "options": [{ "value": "dark-out", "label": "Dark outside, light inside" }, { "value": "light-out", "label": "Light outside, dark inside" }] },
+    { "key": "trade", "type": "bool", "label": "Colours trade places each line", "default": true },
+    { "key": "speed", "type": "number", "label": "Trade time", "min": 0.5, "max": 8, "step": 0.1, "unit": "s", "default": 2.6 },
+    { "key": "size", "type": "number", "label": "Painting size", "min": 60, "max": 100, "step": 1, "default": 94 },
+    { "key": "font", "type": "font", "label": "Caption font", "default": "New York" },
+    { "key": "caption", "type": "bool", "label": "Lyric caption", "default": true },
+    { "key": "grain", "type": "bool", "label": "Paint grain", "default": true }
+  ]
+}
