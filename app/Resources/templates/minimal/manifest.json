@@ -60,6 +60,12 @@
       "default": true
     },
     {
+      "key": "translations",
+      "type": "bool",
+      "label": "Show translations",
+      "default": true
+    },
+    {
       "key": "showWave",
       "type": "bool",
       "label": "Waveform",

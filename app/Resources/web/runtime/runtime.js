@@ -5,6 +5,8 @@
  *   - exposes CSS variables:       --progress --line-progress --cover-url --vibrant --p0… --param-<key>
  *   - drives smart components:     <lyrics-block> <fit-text> <swatch-row> <wave-form> <progress-bar>
  *   - offers hooks for custom JS:  Wallpaper.on('render', ctx => …)
+ *   - tags <html> with the moment: sw-focus, sw-duet, sw-weather-<condition>, sw-phase-<night|dawn|day|dusk>
+ *   - relays beats from the app:   Wallpaper.on('beat', b => …), --beat (decaying pulse) and --level
  * See TEMPLATE_GUIDE.md in the templates folder for the full reference.
  */
 (function () {
@@ -27,6 +29,9 @@
     "Courier New": "'Courier New', monospace",
     "Snell Roundhand": "'Snell Roundhand', cursive",
     "Marker Felt": "'Marker Felt', fantasy",
+    "Bradley Hand": "'Bradley Hand', 'Noteworthy', cursive",
+    "Noteworthy": "Noteworthy, 'Marker Felt', cursive",
+    "Chalkboard SE": "'Chalkboard SE', 'Marker Felt', cursive",
   };
   const AUTO_COLORS = ["vibrant", "dominant", "card", "deep", "dark", "light", "muted", "paper", "onDominant"];
 
@@ -36,6 +41,8 @@
     autoColors: AUTO_COLORS,
     manifest: null,
     ctx: null,
+    /// the latest beat-sync state from the app: tempo, time of the last onset (ms since 1970), smoothed loudness 0–1
+    beat: { bpm: 0, last: 0, level: 0, strength: 0 },
     /// Promises the first render waits for (e.g. the Builder renderer building the page from design.json).
     waits: [],
     /// Promises the current render waits for before layout and the still snapshot (e.g. a sketch loading the cover).
@@ -108,7 +115,22 @@
     day: new Intl.DateTimeFormat([], { weekday: "long" }),
   };
   let textCache = { minute: -1 };
-  function timeInfo(song, line) {
+  /** Where the day is: from the weather's sunrise/sunset when known (times of day, so yesterday's still work), else the
+   *  clock (dawn 5–8, day 8–17, dusk 17–20). sunProgress runs 0→1 from sunrise to sunset. */
+  function dayPhase(d, w) {
+    const mins = (x) => x.getHours() * 60 + x.getMinutes() + x.getSeconds() / 60;
+    const now = mins(d);
+    let rise = 390, set = 1110, dawn = [300, 480], dusk = [1020, 1200];
+    if (w && w.sunrise && w.sunset) {
+      rise = mins(new Date(w.sunrise)); set = mins(new Date(w.sunset));
+      if (set <= rise) set += 1440;
+      dawn = [rise - 50, rise + 70]; dusk = [set - 70, set + 50];
+    }
+    const at = (r) => (now >= r[0] && now < r[1]) || (now + 1440 >= r[0] && now + 1440 < r[1]);
+    const phase = at(dawn) ? "dawn" : at(dusk) ? "dusk" : at([dawn[1], dusk[0]]) ? "day" : "night";
+    return { dayPhase: phase, sunProgress: clamp((now - rise) / (set - rise), 0, 1) };
+  }
+  function timeInfo(song, line, weather) {
     const d = new Date();
     const minuteKey = Math.floor(d.getTime() / 60000);
     if (textCache.minute !== minuteKey) {
@@ -125,12 +147,15 @@
       now: (performance.now() - pageStart) / 1000,
       hour: d.getHours(), minute: d.getMinutes(), second: d.getSeconds() + d.getMilliseconds() / 1000,
       clock: textCache.clock, clock24: textCache.clock24, date: textCache.date, day: textCache.day,
+      ...dayPhase(d, weather),
     };
   }
 
   /** Per-frame CSS variables cost a style pass over the whole page, so only update the ones a template uses. */
   const FRAME_VARS = ["--progress", "--line-progress", "--song-time", "--line-time", "--time", "--hour", "--minute", "--second"];
-  let usedVars = new Set();
+  /** --beat / --level change with the music, not the clock: set only when beats arrive (and only if used). */
+  const BEAT_VARS = ["--beat", "--level"];
+  let usedVars = new Set(), usedBeatVars = new Set();
   function scanUsedVars() {
     let text = "";
     for (const sheet of document.styleSheets) {
@@ -140,6 +165,7 @@
     // inline styles written by templates (not the root element, where the runtime itself sets every variable)
     for (const el of document.body.querySelectorAll("[style]")) text += el.getAttribute("style");
     usedVars = new Set(FRAME_VARS.filter((v) => text.includes(v)));
+    usedBeatVars = new Set(BEAT_VARS.filter((v) => text.includes(v)));
   }
 
   function frameVars(ctx) {
@@ -162,6 +188,21 @@
     return out;
   }
 
+  // Regions that read temperatures in Fahrenheit.
+  const FAHRENHEIT = /-(US|LR|MM|BS|BZ|KY|PW|FM|MH)\b/i.test(navigator.language || "");
+  function weatherInfo(w) {
+    const c = +w.temperature, has = isFinite(c) && w.temperature !== null && w.temperature !== "";
+    const f = c * 9 / 5 + 32;
+    return {
+      ...w,
+      condition: String(w.condition).toLowerCase(),
+      isDay: w.isDay !== undefined ? !!w.isDay : undefined,
+      tempC: has ? Math.round(c) + "°" : "",
+      tempF: has ? Math.round(f) + "°" : "",
+      temp: has ? Math.round(FAHRENHEIT ? f : c) + "°" : "",
+    };
+  }
+
   function derive(payload) {
     const t = payload.track || {};
     const L = payload.lyrics || {};
@@ -174,9 +215,13 @@
     const prev = [], next = [];
     for (let k = 1; k <= 8; k++) { prev.push(text(i - k)); next.push(text(i + k)); }
     const current = text(i);
+    const cur = i >= 0 && i < lines.length ? lines[i] : {};
+    const singers = Array.isArray(L.singers) ? L.singers.filter(Boolean) : [];
+    const w = payload.weather && typeof payload.weather === "object" && payload.weather.condition ? payload.weather : null;
     return {
       track: {
         ...t,
+        genre: t.genre || "",
         progress: t.duration ? clamp(t.position / t.duration, 0, 1) : 0,
         elapsed: fmtTime(t.position),
         remaining: "-" + fmtTime((t.duration || 0) - (t.position || 0)),
@@ -189,9 +234,16 @@
         synced: !!L.synced,
         hasLyrics: lines.length > 0,
         isInstrumental: lines.length > 0 && !current.trim(),
+        translation: (current.trim() && cur.translation) || "",
+        singer: cur.singer || "",
+        singers,
+        isDuet: singers.length > 1,
+        hasTranslation: !!L.hasTranslation || lines.some((l) => l.translation),
       },
+      weather: w && weatherInfo(w),
+      focus: !!payload.focus,
       colors,
-      time: timeInfo(t.position || 0, i >= 0 ? (t.position || 0) - lineStart : 0),
+      time: timeInfo(t.position || 0, i >= 0 ? (t.position || 0) - lineStart : 0, w),
       params: resolveParams(payload.params || {}, colors),
       screen: payload.screen || { width: innerWidth, height: innerHeight, scale: devicePixelRatio },
     };
@@ -219,6 +271,18 @@
       instrumental: ctx.lyrics.isInstrumental, ultrawide: ctx.screen.width / ctx.screen.height > 2,
     };
     for (const k in flags) root.classList.toggle(k, !!flags[k]);
+    momentClasses(ctx);
+  }
+
+  /** <html> classes for the moment: focus, duet, weather, time of day. Called on render and every live tick. */
+  function momentClasses(ctx) {
+    const root = document.documentElement;
+    root.classList.toggle("sw-focus", ctx.focus);
+    root.classList.toggle("sw-duet", ctx.lyrics.isDuet);
+    const want = ["sw-phase-" + ctx.time.dayPhase];
+    if (ctx.weather) want.push("sw-weather-" + ctx.weather.condition);
+    for (const c of [...root.classList]) if (/^sw-(phase|weather)-/.test(c) && !want.includes(c)) root.classList.remove(c);
+    for (const c of want) root.classList.add(c);
   }
 
   function applyBindings(ctx) {
@@ -257,24 +321,35 @@
 
   // ---------- components ----------
 
-  // Children are an intro line ("• • •" before the first lyric) followed by one .line per lyric.
+  /** A boolean attribute that templates may also bind (data-attr-x="params.x" writes "true"/"false"). */
+  const flagAttr = (el, name, fallback) => el.hasAttribute(name) ? !/^(false|0)$/.test(el.getAttribute(name)) : !!fallback;
+
+  // Children are an intro line ("• • •" before the first lyric) followed by one .line per lyric. A line's text is its
+  // first child (a text node); with `translations` on, its translation follows as <span class="tr">. Duets add
+  // data-singer="A|B|both" on each sung line.
   function lyricsBlock(el, ctx) {
     const { lines, index } = ctx.lyrics;
     const before = +(el.getAttribute("before") ?? 2), after = +(el.getAttribute("after") ?? 3);
     const layout = el.getAttribute("layout") || "flow";
     const empty = el.getAttribute("empty") ?? "• • •";
-    const sig = ctx.track.id + ":" + lines.length + ":" + empty;
+    const tr = flagAttr(el, "translations", ctx.params.translations === true) && ctx.lyrics.hasTranslation;
+    const sig = ctx.track.id + ":" + lines.length + ":" + empty + ":" + tr + ":" + ctx.lyrics.isDuet;
     let inner = el.querySelector(":scope > .lines");
     if (!inner || el._sig !== sig) {
       el.innerHTML = "";
       inner = document.createElement("div");
       inner.className = "lines";
       el.appendChild(inner);
-      if (lines.length) for (const text of [empty, ...lines.map((l) => (l.text.trim() ? l.text : empty))]) {
-        inner.appendChild(Object.assign(document.createElement("div"), { textContent: text }));
-      }
+      if (lines.length) [{ text: "" }, ...lines].forEach((l, k) => {
+        const d = document.createElement("div"), sung = k > 0 && l.text.trim();
+        d.appendChild(document.createTextNode(sung ? l.text : empty));
+        if (sung && l.singer) d.dataset.singer = l.singer;
+        if (sung && tr && l.translation) d.appendChild(Object.assign(document.createElement("span"), { className: "tr", textContent: l.translation }));
+        inner.appendChild(d);
+      });
       el._sig = sig;
     }
+    el.classList.toggle("has-translations", tr);
     el.dataset.layout = layout;
     [...inner.children].forEach((d, k) => {
       const isIntro = k === 0;
@@ -606,6 +681,7 @@
         const ctx = liveContext();
         Wallpaper.ctx = ctx;
         applyBindings(ctx);  // elapsed time, clock
+        momentClasses(ctx);  // the time of day moves on
         emit("tick", ctx);
       }, 1000);
     });
@@ -635,12 +711,43 @@
     }
   }
 
-  window.__sw = { render: schedule, live: startLive, clock: setClock, pause: setPaused };
+  // ---------- beat sync ----------
+  // The app sends onsets ({strength, bpm, t}) and loudness ({level}) while beat sync is on. --beat is a pulse that
+  // jumps to the onset's strength and decays to 0 in ~0.4 s; its short frame loop only runs while it decays, and only
+  // for templates whose CSS uses --beat. Nothing here depends on beats arriving.
+  const BEAT_DECAY = 0.16;  // seconds per e-fold
+  let beatLooping = false, beatFrame = 0;
+  function onBeat(m) {
+    if (!m || typeof m !== "object") return;
+    const b = Wallpaper.beat, s = document.documentElement.style;
+    if (m.bpm) b.bpm = +m.bpm || 0;
+    if (m.level != null && isFinite(+m.level)) {
+      b.level = clamp(+m.level, 0, 1);
+      if (live && !paused && usedBeatVars.has("--level")) s.setProperty("--level", b.level.toFixed(3));
+    }
+    if (m.strength == null || !live || paused) return;
+    b.strength = clamp(+m.strength || 0, 0, 1);
+    b.last = +m.t || Date.now();
+    b.at = performance.now();
+    emit("beat", { ...b });
+    if (usedBeatVars.has("--beat") && !beatLooping) { beatLooping = true; requestAnimationFrame(beatPulse); }
+  }
+  function beatPulse(now) {
+    const b = Wallpaper.beat, s = document.documentElement.style;
+    const v = paused || !live ? 0 : b.strength * Math.exp(-(now - b.at) / 1000 / BEAT_DECAY);
+    const fps = (live && +live.fps) || 0;
+    if (v < 0.01) { s.setProperty("--beat", 0); beatLooping = false; return; }
+    if (!fps || now - beatFrame >= 1000 / fps - 2) { beatFrame = now; s.setProperty("--beat", v.toFixed(3)); }
+    requestAnimationFrame(beatPulse);
+  }
+
+  window.__sw = { render: schedule, live: startLive, clock: setClock, pause: setPaused, beat: onBeat };
   // The Customize window's preview talks over postMessage.
   window.addEventListener("message", (e) => {
     const m = e.data || {};
     if (m.type === "sw:update") schedule(m.payload);
     else if (m.type === "sw:live") startLive(m.payload);
     else if (m.type === "sw:clock") setClock(m.clock);
+    else if (m.type === "sw:beat") onBeat(m.beat || m.payload);
   });
 })();

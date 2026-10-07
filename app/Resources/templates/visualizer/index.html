@@ -27,8 +27,8 @@
 <body>
   <div class="glow"></div>
   <div class="top"><img data-src="track.cover" alt=""><div><div class="t" data-bind="track.title"></div><div class="a" data-bind="track.artist"></div></div></div>
-  <div class="lyric" data-animate data-bind="lyrics.current|note"></div>
-  <div class="next" data-animate data-bind="lyrics.next1"></div>
+  <div class="lyric" data-lyrics data-animate data-bind="lyrics.current|note"></div>
+  <div class="next" data-lyrics data-animate data-bind="lyrics.next1"></div>
   <div class="viz"><wave-form data-attr-bars="params.bars" data-attr-motion="params.energy"></wave-form></div>
   <div class="mirror" data-show="params.mirror"><wave-form data-attr-bars="params.bars" data-attr-motion="params.energy"></wave-form></div>
 </body>

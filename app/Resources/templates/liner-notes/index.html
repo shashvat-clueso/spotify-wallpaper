@@ -1,0 +1,181 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  :root { --soft: color-mix(in oklab, var(--param-ink), var(--param-paper) 45%); --gutter: 40%; }
+  .ultrawide { --gutter: 33%; }
+  body { background: var(--param-paper); color: var(--param-ink); font-family: var(--param-font); }
+
+  /* the paper: a warm tooth, the light falling off toward the edges, and the fold where the booklet opens */
+  .paper { position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 85% 75% at 50% 45%, transparent 55%, color-mix(in oklab, var(--param-paper), #000 9%)),
+      repeating-linear-gradient(93deg, rgba(0, 0, 0, 0.012) 0 1px, transparent 1px 5px); }
+  .fold { position: absolute; top: 0; bottom: 0; left: var(--gutter); width: 9vmin; margin-left: -4.5vmin;
+    background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.07) 42%, rgba(0, 0, 0, 0.16) 49.6%, rgba(255, 255, 255, 0.22) 50.4%, rgba(0, 0, 0, 0.05) 58%, transparent); }
+  .sw-grain { opacity: 0.16; mix-blend-mode: multiply; }
+
+  .spread { position: absolute; inset: 0; display: grid; grid-template-columns: var(--gutter) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+
+  /* ---------- left page: the cover and the credits ---------- */
+  .left { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6vh 6vmin 9vh; min-width: 0; }
+  .cover { width: min(30vw, 54vh); aspect-ratio: 1; object-fit: cover; display: block;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 0.25vmin 0.6vmin rgba(0, 0, 0, 0.1); }
+  .ultrawide .cover { width: min(26vw, 56vh); }
+  .credits { margin-top: 4.6vh; text-align: center; max-width: min(30vw, 54vh); }
+  .credits .orn { color: var(--param-accent); font-size: 2.2vmin; line-height: 1; }
+  .credits .t { font-variant-caps: all-small-caps; letter-spacing: 0.14em; font-size: 2.5vmin; margin-top: 1.4vh; line-height: 1.25; }
+  .credits .a { font-style: italic; font-size: 2.1vmin; margin-top: 0.6vh; color: var(--soft); }
+  .credits .meta { font-variant-caps: all-small-caps; letter-spacing: 0.16em; font-size: 1.45vmin; margin-top: 2.2vh; color: var(--soft); line-height: 1.7; }
+  .credits .meta span + span::before { content: "  ·  "; white-space: pre; color: var(--param-accent); }
+
+  /* ---------- right page: the lyrics, set like a booklet ---------- */
+  .right { position: relative; display: flex; flex-direction: column; min-height: 0; padding: 8vh 7vmin 10vh 6vmin; min-width: 0; }
+  .head { flex: none; display: flex; align-items: baseline; gap: 2vmin; border-bottom: 1px solid color-mix(in oklab, var(--param-ink) 22%, transparent); padding-bottom: 1.8vh; margin-bottom: 3.4vh; }
+  .head .no { font-size: 4.6vmin; line-height: 0.8; color: var(--param-accent); font-style: italic; font-variant-numeric: oldstyle-nums; }
+  .head .t { flex: 1; min-width: 0; font-variant-caps: all-small-caps; letter-spacing: 0.12em; font-size: 3vmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .head .a { font-style: italic; font-size: 2vmin; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
+
+  .frame { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  .flow { position: relative; height: 100%; column-fill: auto; column-gap: 4.5vmin; column-rule: 1px solid color-mix(in oklab, var(--param-ink) 10%, transparent);
+    font-size: var(--size, 2.4vmin); line-height: 1.42; font-variant-numeric: oldstyle-nums; hanging-punctuation: first; }
+  .sw-live .flow { transition: transform 0.9s cubic-bezier(0.3, 0.1, 0.2, 1); }
+  .stanza { position: relative; break-inside: avoid; margin-bottom: 0.95em; padding-left: 1.7em; }
+  .stanza .n { position: absolute; left: 0; top: 0.12em; font-size: 0.72em; font-style: italic; color: var(--param-accent); letter-spacing: 0.02em; }
+  html:not(.param-verseNumbers) .stanza .n { display: none; }
+  .l { padding-left: 1em; text-indent: -1em; }
+  .l .t { box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 0 0.12em; margin: 0 -0.12em; }
+  .l.next { color: color-mix(in oklab, var(--param-ink), var(--param-paper) 14%); }
+  /* the sung line: a soft marker stroke under the lower half of the letters */
+  .l.cur .t { background: linear-gradient(transparent 58%, color-mix(in oklab, var(--param-marker) 42%, transparent) 58% 90%, transparent 90%) no-repeat 0 0 / 100% 100%; }
+  .sw-live .l.cur .t { animation: mark 0.8s cubic-bezier(0.3, 0.6, 0.3, 1); }
+  @keyframes mark { from { background-size: 0% 100%; } }
+  .l .tr { display: block; font-style: italic; font-size: 0.8em; line-height: 1.3; color: var(--soft); text-indent: 0; margin: 0.05em 0 0.3em; }
+  .who { font-variant-caps: all-small-caps; letter-spacing: 0.14em; font-size: 0.8em; color: var(--param-accent); margin-top: 0.2em; }
+  .none { font-style: italic; color: var(--soft); font-size: 2.4vmin; text-align: center; margin-top: 18vh; }
+  .none b { display: block; font-style: normal; color: var(--param-accent); font-size: 3vmin; font-weight: 400; margin-bottom: 1.6vh; }
+
+  .pages { position: absolute; bottom: 4.4vh; font-variant-caps: all-small-caps; letter-spacing: 0.18em; font-size: 1.4vmin; color: var(--soft); white-space: nowrap; }
+  .pages.l1 { left: 6vmin; right: calc(100% - var(--gutter) + 6vmin); overflow: hidden; text-overflow: ellipsis; }
+  .pages.r1 { right: 7vmin; text-align: right; }
+  .pages b { font-weight: 400; color: var(--param-accent); }
+
+  @media (max-aspect-ratio: 1/1) {
+    .spread { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+    .fold { display: none; }
+    .left { flex-direction: row; gap: 5vw; padding: 7vh 7vw 2vh; }
+    .cover { width: 38vw; }
+    .credits { margin-top: 0; text-align: left; max-width: none; flex: 1; }
+    .right { padding: 3vh 7vw 9vh; }
+    .pages.l1 { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="paper"></div>
+  <div class="fold" data-show="params.fold"></div>
+  <div class="spread">
+    <div class="left">
+      <img class="cover" data-src="track.cover" data-show="track.cover" alt="">
+      <div class="credits">
+        <div class="orn">❦</div>
+        <div class="t" data-bind="track.title"></div>
+        <div class="a" data-bind="track.artist"></div>
+        <div class="meta" id="meta"></div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="head"><span class="no" id="no"></span><span class="t" data-bind="track.title"></span><span class="a" data-bind="track.artist"></span></div>
+      <div class="frame" data-lyrics><div class="flow" id="flow"></div></div>
+    </div>
+  </div>
+  <div class="pages l1" data-bind="track.album"></div>
+  <div class="pages r1"><span data-bind="track.artist"></span> &nbsp;<b>❧</b>&nbsp; <span data-bind="track.length"></span></div>
+  <div class="sw-grain" data-show="params.grain"></div>
+
+  <script>
+    const flow = document.getElementById("flow"), meta = document.getElementById("meta"), no = document.getElementById("no");
+    const ROMAN = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii", "xviii", "xix", "xx"];
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    let built = null;
+
+    // The whole song, in stanzas (split at instrumental gaps). In a duet, the singer's name heads each change of voice.
+    function build(ctx) {
+      const { lines, singers, isDuet } = ctx.lyrics, tr = ctx.params.translations && ctx.lyrics.hasTranslation;
+      const sig = [ctx.track.id, lines.length, tr, isDuet, singers.join("|")].join(":");
+      if (built === sig) return;
+      built = sig;
+      if (!lines.length) {
+        flow.innerHTML = `<div class="none"><b>❦</b>${ctx.track.title ? "No words were printed for this one." : ""}</div>`;
+        return;
+      }
+      const name = (s) => s === "both" ? (singers.length > 1 ? singers.join(" & ") : "All") : singers[s === "B" ? 1 : 0] || s;
+      let html = "", open = false, n = 0, voice = null;
+      lines.forEach((l, k) => {
+        if (!l.text.trim()) { if (open) { html += "</div>"; open = false; } return; }
+        if (!open) { html += `<div class="stanza"><span class="n">${ROMAN[n] || n + 1}.</span>`; open = true; n++; }
+        if (isDuet && l.singer && l.singer !== voice) { voice = l.singer; html += `<div class="who">${esc(name(l.singer))}</div>`; }
+        html += `<div class="l" data-i="${k}"><span class="t">${esc(l.text)}</span>${tr && l.translation ? `<span class="tr">${esc(l.translation)}</span>` : ""}</div>`;
+      });
+      if (open) html += "</div>";
+      flow.innerHTML = html;
+    }
+
+    function mark(ctx) {
+      const i = ctx.lyrics.index;
+      for (const el of flow.querySelectorAll(".l")) {
+        const k = +el.dataset.i;
+        el.classList.toggle("cur", k === i);
+        el.classList.toggle("past", k < i);
+        el.classList.toggle("next", k > i);
+      }
+    }
+
+    // The largest size (and fewest columns) that fits the page; if even the smallest doesn't, the extra columns sit off
+    // to the right and the page turns to keep the sung line in view.
+    let fitted = null;
+    function fit(ctx) {
+      const key = built + ":" + innerWidth + "x" + innerHeight + ":" + ctx.params.maxSize + ":" + ctx.params.columns + ":" + ctx.params.font;
+      if (fitted === key) return;
+      fitted = key;
+      const vmin = Math.min(innerWidth, innerHeight) / 100, W = flow.clientWidth;
+      const max = parseFloat(ctx.params.maxSize) * vmin, min = Math.min(max, 2.1 * vmin), most = Math.max(1, +ctx.params.columns || 3);
+      let size = max;
+      for (; ; size = Math.max(min, size * 0.94)) {
+        const cols = Math.max(1, Math.min(most, Math.floor(W / (size * 17))));
+        flow.style.setProperty("--size", size.toFixed(2) + "px");
+        flow.style.columnCount = cols;
+        if (flow.scrollWidth <= W + 2 || size <= min) break;
+      }
+    }
+
+    function turn(ctx) {
+      const cur = flow.querySelector(".l.cur") || flow.querySelector(".l.next");
+      const gap = parseFloat(getComputedStyle(flow).columnGap) || 0, pitch = flow.clientWidth + gap;
+      // offsetLeft ignores columns; the boxes' rects don't (both move with the flow, so its own transform cancels out)
+      const left = cur ? cur.getBoundingClientRect().left - flow.getBoundingClientRect().left : 0;
+      const page = Math.max(0, Math.floor((left + 2) / pitch));
+      const x = `translateX(${-page * pitch}px)`;
+      if (flow.style.transform !== x) flow.style.transform = x;
+    }
+
+    Wallpaper.on("render", (ctx) => {
+      build(ctx);
+      mark(ctx);
+      const t = ctx.track, year = t.year || (t.releaseDate ? String(t.releaseDate).slice(0, 4) : "");
+      const bits = [t.album, t.genre, t.length, year ? `℗ ${year} ${t.artist || ""}`.trim() : ""].filter(Boolean);
+      const html = bits.map((b) => `<span>${esc(b)}</span>`).join("");
+      if (meta.innerHTML !== html) meta.innerHTML = html;
+      // a number ornament like a booklet's track number: the verse being sung, in roman numerals
+      const stanzas = [...flow.querySelectorAll(".stanza")], at = flow.querySelector(".l.cur, .l.next");
+      const v = at ? stanzas.indexOf(at.closest(".stanza")) : -1;
+      const text = v >= 0 ? (ROMAN[v] || v + 1) + "." : "❦";
+      if (no.textContent !== text) no.textContent = text;
+    });
+    Wallpaper.on("layout", (ctx) => { fit(ctx); turn(ctx); });
+  </script>
+</body>
+</html>

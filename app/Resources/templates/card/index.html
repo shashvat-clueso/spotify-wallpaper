@@ -35,6 +35,9 @@
   lyrics-block .current { color: #fff; }
   lyrics-block .next { color: rgba(0, 0, 0, 0.53); }
   .card[data-upcoming="faded"] lyrics-block .next { color: rgba(255, 255, 255, 0.4); }
+  /* translations stay compact on a card: only under the line being sung */
+  lyrics-block .line:not(.current) .tr { display: none; }
+  lyrics-block .tr { font-weight: 600; }
   lyrics-block.karaoke { --karaoke-on: #fff; --karaoke-off: rgba(0, 0, 0, 0.45); }
   .empty { font-weight: 700; font-size: var(--param-lyricSize); opacity: 0.6; }
 
@@ -58,7 +61,7 @@
       </div>
     </header>
 
-    <lyrics-block data-attr-class="params.karaoke|kclass" data-attr-before="params.linesBefore" data-attr-after="params.linesAfter"></lyrics-block>
+    <lyrics-block data-attr-class="params.karaoke|kclass" data-attr-duet="params.duet" data-attr-translations="params.translations" data-attr-before="params.linesBefore" data-attr-after="params.linesAfter"></lyrics-block>
     <div class="empty" data-show="!lyrics.hasLyrics">No lyrics found</div>
 
     <footer data-show="params.showProgress">

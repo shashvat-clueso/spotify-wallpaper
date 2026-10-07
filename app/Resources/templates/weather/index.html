@@ -1,0 +1,295 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  /* The template sets ph-<dawn|day|dusk|night> and wx-<condition|none> on <html> (the runtime's sw-phase-/sw-weather-
+     classes, unless the Weather / Time of day settings pick one). Everything that moves is a transform or opacity. */
+  body { background: #0b1022; color: #fff; font-family: var(--param-font); }
+  .sky, .sky > * { position: absolute; inset: 0; }
+  .sky { overflow: hidden; }
+  .phase { opacity: 0; }
+  .phase.night { background: linear-gradient(180deg, #060a1a, #101a38 55%, #22335a); }
+  .phase.dawn { background: linear-gradient(180deg, #27315e, #6f5f96 42%, #d99aa0 74%, #f5c79e); }
+  .phase.day { background: linear-gradient(180deg, #3b78bd, #6ea6dc 50%, #bcd9ef); }
+  .phase.dusk { background: linear-gradient(180deg, #1a1a44, #5b2f66 38%, #c24f62 70%, #f39a5a); }
+  .ph-night .phase.night, .ph-dawn .phase.dawn, .ph-day .phase.day, .ph-dusk .phase.dusk { opacity: 1; }
+  /* the cover's colors washed through the sky */
+  .tint { background: linear-gradient(180deg, var(--p0, var(--vibrant)), var(--vibrant, #888) 60%, var(--p2, var(--deep))); opacity: var(--param-tint); }
+  .overcast { opacity: 0; background: linear-gradient(180deg, #4f5864, #8c96a0 70%, #aab2b9); }
+  .ph-night .overcast, .ph-dusk .overcast { background: linear-gradient(180deg, #0c1016, #1c232d 70%, #2a313b); }
+  .wx-clouds .overcast { opacity: 0.32; }
+  .wx-rain .overcast, .wx-snow .overcast { opacity: 0.55; }
+  .wx-storm .overcast { opacity: 0.72; }
+  .wx-fog .overcast { opacity: 0.62; }
+
+  .stars { opacity: 0;
+    background:
+      radial-gradient(1px 1px at 12% 18%, #fff, transparent), radial-gradient(1px 1px at 27% 8%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 41% 23%, #fff, transparent), radial-gradient(1px 1px at 57% 12%, #fff, transparent),
+      radial-gradient(1px 1px at 66% 31%, #fff, transparent), radial-gradient(1.5px 1.5px at 78% 6%, #fff, transparent),
+      radial-gradient(1px 1px at 89% 21%, #fff, transparent), radial-gradient(1px 1px at 94% 39%, #fff, transparent),
+      radial-gradient(1px 1px at 6% 37%, #fff, transparent), radial-gradient(1.5px 1.5px at 33% 41%, #fff, transparent),
+      radial-gradient(1px 1px at 51% 4%, #fff, transparent), radial-gradient(1px 1px at 71% 44%, #fff, transparent),
+      radial-gradient(1px 1px at 18% 52%, #fff, transparent), radial-gradient(1px 1px at 84% 52%, #fff, transparent); }
+  .ph-night .stars { opacity: 0.8; }
+  .ph-dawn .stars, .ph-dusk .stars { opacity: 0.25; }
+  .ph-night:is(.wx-rain, .wx-storm, .wx-snow, .wx-fog) .stars { opacity: 0.08; }
+
+  /* sun or moon, placed along its arc by the script */
+  .orb { inset: auto; left: 0; top: 0; width: 0; height: 0; }
+  .orb .glow { position: absolute; width: 80vmin; height: 80vmin; margin: -40vmin; border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(255, 236, 190, 0.5), rgba(255, 210, 150, 0.14) 45%, transparent); }
+  .orb .disc { position: absolute; width: 11vmin; height: 11vmin; margin: -5.5vmin; border-radius: 50%;
+    background: radial-gradient(circle at 42% 40%, #fffdf2, #ffe9b8 70%, #ffd892); box-shadow: 0 0 6vmin rgba(255, 230, 170, 0.7); }
+  .ph-dawn .orb .disc, .ph-dusk .orb .disc { background: radial-gradient(circle at 42% 40%, #fff1d6, #ffb27a 70%, #ff9466); box-shadow: 0 0 8vmin rgba(255, 150, 90, 0.75); width: 14vmin; height: 14vmin; margin: -7vmin; }
+  .ph-dawn .orb .glow, .ph-dusk .orb .glow { width: 130vmin; height: 130vmin; margin: -65vmin; background: radial-gradient(closest-side, rgba(255, 170, 110, 0.55), rgba(255, 130, 90, 0.16) 50%, transparent); }
+  .ph-night .orb .disc { width: 8vmin; height: 8vmin; margin: -4vmin;
+    background: radial-gradient(circle at 34% 38%, rgba(0, 0, 0, 0.08) 0 9%, transparent 10%), radial-gradient(circle at 62% 60%, rgba(0, 0, 0, 0.07) 0 13%, transparent 14%),
+      radial-gradient(circle at 58% 30%, rgba(0, 0, 0, 0.06) 0 6%, transparent 7%), radial-gradient(circle at 45% 42%, #fbfaf3, #e2e1d8 75%, #cfcdc2);
+    box-shadow: 0 0 5vmin rgba(220, 230, 255, 0.45); }
+  .ph-night .orb .glow { width: 60vmin; height: 60vmin; margin: -30vmin; background: radial-gradient(closest-side, rgba(190, 210, 255, 0.22), transparent); }
+  .orb { opacity: 1; }
+  .wx-clouds .orb { opacity: 0.75; }
+  .wx-rain .orb, .wx-snow .orb, .wx-fog .orb { opacity: 0.22; }
+  .wx-storm .orb { opacity: 0; }
+
+  /* the sky eases between times of day and weathers on the live layer, once it's been drawn the first time */
+  .sw-live.sky-ready .phase { transition: opacity 40s linear; }
+  .sw-live.sky-ready :is(.overcast, .clouds, .fall, .fog) { transition: opacity 6s ease; }
+  .sw-live.sky-ready .stars { transition: opacity 30s linear; }
+  .sw-live.sky-ready .orb { transition: transform 60s linear, opacity 6s ease; }
+
+  /* clouds: soft lumps made of radial gradients, drifting on the compositor */
+  .clouds { opacity: 0; }
+  .wx-clouds .clouds, .wx-rain .clouds, .wx-storm .clouds, .wx-snow .clouds { opacity: 1; }
+  .ph-day.wx-clear .clouds, .ph-day.wx-none .clouds { opacity: 0.2; }
+  .cloud { position: absolute; width: 70vmin; height: 26vmin; --c: rgba(255, 255, 255, 0.55);
+    background:
+      radial-gradient(closest-side, var(--c), transparent) 8% 70% / 42% 70% no-repeat,
+      radial-gradient(closest-side, var(--c), transparent) 34% 30% / 46% 95% no-repeat,
+      radial-gradient(closest-side, var(--c), transparent) 62% 45% / 44% 85% no-repeat,
+      radial-gradient(closest-side, var(--c), transparent) 92% 72% / 40% 62% no-repeat; }
+  .ph-night .cloud, .ph-dusk .cloud { --c: rgba(150, 160, 190, 0.22); }
+  .wx-rain .cloud, .wx-storm .cloud { --c: rgba(70, 78, 92, 0.6); }
+  .ph-night:is(.wx-rain, .wx-storm) .cloud { --c: rgba(30, 36, 48, 0.75); }
+  .cloud:nth-child(1) { left: -10vw; top: 6vh; }
+  .cloud:nth-child(2) { left: 34vw; top: 14vh; transform: scale(1.3); }
+  .cloud:nth-child(3) { left: 68vw; top: 3vh; transform: scale(0.9); }
+  .cloud:nth-child(4) { left: 14vw; top: 30vh; transform: scale(0.7); opacity: 0.7; }
+  .cloud:nth-child(5) { left: 80vw; top: 26vh; transform: scale(1.1); opacity: 0.8; }
+  .sw-live.param-effects .clouds { animation: drift 120s ease-in-out infinite alternate; }
+  @keyframes drift { from { transform: translateX(-6vw); } to { transform: translateX(6vw); } }
+
+  .hills { inset: auto 0 0 0; width: 100%; height: 34vh; display: block; }
+  .hills .far { fill: color-mix(in oklab, var(--hill), var(--deep, #222) 30%); opacity: 0.75; }
+  .hills .near { fill: color-mix(in oklab, var(--hill), #000 35%); }
+  :root { --hill: #1d2d4f; }
+  .ph-night { --hill: #0b1226; }
+  .ph-dawn { --hill: #4b3f66; }
+  .ph-dusk { --hill: #3b1f42; }
+  .ph-day { --hill: #3f6684; }
+
+  /* rain / snow: a tile of streaks or flakes (drawn once by the script) sliding down forever */
+  .fall { opacity: 0; }
+  .fall > i { position: absolute; left: -20%; right: -20%; top: calc(var(--tile) * -1); bottom: 0; background-repeat: repeat; will-change: transform; }
+  .rain { transform: rotate(9deg); }
+  .wx-rain .rain, .wx-storm .rain, .wx-snow .snow { opacity: 1; }
+  .sw-live.param-effects .fall > i { animation: fall var(--speed) linear infinite; }
+  .sw-live.param-effects .snow > i { animation: fall var(--speed) linear infinite, sway 6s ease-in-out infinite alternate; }
+  @keyframes fall { to { transform: translateY(var(--tile)); } }
+  @keyframes sway { 50% { translate: 2vmin 0; } 100% { translate: -2vmin 0; } }
+  .wx-storm .rain > i:last-child { opacity: 1; }
+
+  .fog { opacity: 0; }
+  .wx-fog .fog { opacity: 1; }
+  .wx-rain .fog, .wx-storm .fog, .wx-snow .fog { opacity: 0.35; }
+  .fog i { position: absolute; width: 140vw; height: 50vh; left: -20vw; border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(225, 230, 236, 0.75), rgba(225, 230, 236, 0.25) 60%, transparent); }
+  .ph-night .fog i { background: radial-gradient(closest-side, rgba(120, 130, 150, 0.4), rgba(120, 130, 150, 0.12) 60%, transparent); }
+  .fog i:nth-child(1) { top: 52vh; }
+  .fog i:nth-child(2) { top: 30vh; left: -40vw; opacity: 0.7; }
+  .fog i:nth-child(3) { top: 66vh; left: 10vw; }
+  .sw-live.param-effects .fog i { animation: drift 50s ease-in-out infinite alternate; }
+  .sw-live.param-effects .fog i:nth-child(2) { animation-duration: 70s; animation-direction: alternate-reverse; }
+
+  .flash { background: radial-gradient(ellipse at 70% 10%, #f2f4ff, rgba(220, 225, 255, 0.4) 60%, transparent); opacity: 0; }
+  .sw-live.param-effects.wx-storm .flash { animation: flash 11s linear infinite; }
+  @keyframes flash { 0%, 90%, 100% { opacity: 0; } 90.6% { opacity: 0.55; } 91.2% { opacity: 0.08; } 92% { opacity: 0.42; } 94.5% { opacity: 0; } }
+
+  /* ---------- foreground ---------- */
+  .ui { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 8vw 10vh; text-shadow: 0 0.3vmin 2vmin rgba(0, 0, 0, 0.18); }
+  .when { margin-bottom: 4.5vh; }
+  .when .date { font-size: 2.3vmin; font-weight: 600; letter-spacing: 0.01em; opacity: 0.85; }
+  .when .clock { font-size: 15vmin; font-weight: 200; line-height: 0.95; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; margin-left: -0.5vmin; }
+
+  .glass { position: relative; width: min(66vmin, 48vw); box-sizing: border-box; padding: 3.2vmin 3.4vmin 3.4vmin; border-radius: 3vmin; overflow: hidden;
+    background: linear-gradient(140deg, color-mix(in oklab, var(--param-glass) 62%, transparent), color-mix(in oklab, var(--param-glass) 38%, transparent));
+    box-shadow: 0 2.4vmin 7vmin rgba(0, 0, 0, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+  .glass::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(120deg, rgba(255, 255, 255, 0.16), transparent 32%, transparent 70%, rgba(255, 255, 255, 0.06)); }
+  .wx-snow .glass { box-shadow: 0 2.4vmin 7vmin rgba(0, 0, 0, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.3), inset 0 0 4vmin rgba(255, 255, 255, 0.22); }
+  .wx-fog .glass { box-shadow: 0 2.4vmin 7vmin rgba(0, 0, 0, 0.2), inset 0 0 0 1px rgba(255, 255, 255, 0.2), inset 0 0 6vmin rgba(230, 236, 240, 0.25); }
+  .song { position: relative; display: flex; align-items: center; gap: 2vmin; margin-bottom: 2.8vmin; }
+  .song img { width: 7.4vmin; height: 7.4vmin; border-radius: 1vmin; object-fit: cover; box-shadow: 0 0.8vmin 2vmin rgba(0, 0, 0, 0.3); }
+  .song .meta { min-width: 0; flex: 1; }
+  .song .t { font-weight: 700; font-size: 2.3vmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .song .a { font-weight: 500; font-size: 1.9vmin; opacity: 0.7; margin-top: 0.3vmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  lyrics-block { position: relative; }
+  /* screen sharing: the card closes up around the song instead of keeping an empty space */
+  .sw-focus .glass lyrics-block { display: none; }
+  lyrics-block .line { font-weight: 700; font-size: var(--param-lyricSize); line-height: 1.16; margin-top: 1.2vmin; opacity: 0.42; }
+  lyrics-block .line.next:not(.current) { font-size: calc(var(--param-lyricSize) * 0.62); font-weight: 600; }
+  lyrics-block .current { opacity: 1; }
+  lyrics-block .past { display: none; }
+  lyrics-block .tr { font-weight: 500; font-style: italic; }
+  .none { position: relative; font-size: 2.6vmin; opacity: 0.6; }
+  .progress { position: relative; margin-top: 2.8vmin; height: 0.4vmin; color: rgba(255, 255, 255, 0.9); background: rgba(255, 255, 255, 0.22); }
+
+  /* rain on the glass: streaks running down and beads that stay */
+  .drops { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+  .wx-rain .drops, .wx-storm .drops { opacity: 1; }
+  .drops .run { position: absolute; top: 0; width: 0.32vmin; height: 4.5vmin; border-radius: 0.3vmin; transform: translateY(var(--y));
+    background: linear-gradient(rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.28) 70%, rgba(255, 255, 255, 0.5)); }
+  .drops .run::after { content: ""; position: absolute; left: 50%; bottom: -0.5vmin; width: 1.1vmin; height: 1.3vmin; margin-left: -0.55vmin; border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
+    background: radial-gradient(circle at 38% 34%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.25) 45%, rgba(255, 255, 255, 0.08) 70%);
+    box-shadow: 0 0.15vmin 0.3vmin rgba(0, 0, 0, 0.18); }
+  .sw-live.param-effects .drops .run { animation: run var(--d) cubic-bezier(0.55, 0, 0.85, 0.5) var(--delay) infinite; }
+  @keyframes run { from { transform: translateY(-8vmin); } to { transform: translateY(80vmin); } }
+  .drops .bead { position: absolute; border-radius: 50%; width: var(--s); height: var(--s);
+    background: radial-gradient(circle at 36% 32%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.2) 45%, rgba(255, 255, 255, 0.05) 70%);
+    box-shadow: 0 0.12vmin 0.2vmin rgba(0, 0, 0, 0.15); }
+
+  .corner { position: absolute; top: 5.5vh; right: 5vw; display: flex; align-items: center; gap: 1.2vmin; font-weight: 600; text-shadow: 0 0.3vmin 1.5vmin rgba(0, 0, 0, 0.2); }
+  .corner svg { width: 3.4vmin; height: 3.4vmin; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .corner .deg { font-size: 3vmin; font-weight: 500; letter-spacing: -0.02em; }
+  .corner .what { font-size: 1.6vmin; opacity: 0.75; text-transform: uppercase; letter-spacing: 0.14em; }
+  .sw-grain { opacity: 0.08; }
+
+  @media (max-aspect-ratio: 1/1) {
+    .ui { padding: 0 7vw 9vh; }
+    .glass { width: 100%; }
+  }
+</style>
+</head>
+<body>
+  <div class="sky">
+    <div class="phase night"></div><div class="phase dawn"></div><div class="phase day"></div><div class="phase dusk"></div>
+    <div class="tint"></div>
+    <div class="stars"></div>
+    <div class="orb" id="orb"><div class="glow"></div><div class="disc"></div></div>
+    <div class="overcast"></div>
+    <div class="clouds"><div class="cloud"></div><div class="cloud"></div><div class="cloud"></div><div class="cloud"></div><div class="cloud"></div></div>
+    <svg class="hills" data-show="params.horizon" viewBox="0 0 1000 300" preserveAspectRatio="none">
+      <path class="far" d="M0 170 C 90 120 170 140 250 128 S 420 70 520 104 S 700 150 790 112 S 930 90 1000 118 V300 H0 Z"/>
+      <path class="near" d="M0 228 C 110 190 220 214 330 200 S 520 160 640 196 S 860 236 1000 196 V300 H0 Z"/>
+    </svg>
+    <div class="fog"><i></i><i></i><i></i></div>
+    <div class="fall rain"><i id="rainFar"></i><i id="rainNear"></i></div>
+    <div class="fall snow"><i id="snowFar"></i><i id="snowNear"></i></div>
+    <div class="flash"></div>
+  </div>
+  <div class="sw-grain" data-show="params.grain"></div>
+
+  <div class="corner" id="corner">
+    <svg viewBox="0 0 24 24" id="icon"></svg>
+    <span class="deg" id="deg"></span><span class="what" id="what"></span>
+  </div>
+
+  <div class="ui">
+    <div class="when" data-show="params.showClock"><div class="date" data-bind="time.date"></div><div class="clock" id="clock"></div></div>
+    <div class="glass">
+      <div class="drops" id="drops"></div>
+      <div class="song">
+        <img data-src="track.cover" data-show="track.cover" alt="">
+        <div class="meta"><div class="t" data-bind="track.title"></div><div class="a" data-bind="track.artist"></div></div>
+      </div>
+      <lyrics-block before="0" data-attr-after="params.linesAfter" data-attr-translations="params.translations" data-attr-duet="params.duet"></lyrics-block>
+      <div class="none" data-show="!lyrics.hasLyrics" data-bind="track.album"></div>
+      <progress-bar class="progress"></progress-bar>
+    </div>
+  </div>
+
+  <script>
+    const root = document.documentElement, $ = (id) => document.getElementById(id);
+    const ICONS = {
+      clear: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>',
+      moon: '<path d="M19.5 14.8A8 8 0 0 1 9.2 4.5a8 8 0 1 0 10.3 10.3Z"/>',
+      clouds: '<path d="M7 18.5h10a4 4 0 0 0 .4-8 5.5 5.5 0 0 0-10.6 1.4A3.3 3.3 0 0 0 7 18.5Z"/>',
+      rain: '<path d="M7 14.5h10a3.6 3.6 0 0 0 .4-7.2 5 5 0 0 0-9.6 1.3A3 3 0 0 0 7 14.5Z"/><path d="M8.5 17.5l-1 2.5M12.5 17.5l-1 2.5M16.5 17.5l-1 2.5"/>',
+      storm: '<path d="M7 14h10a3.6 3.6 0 0 0 .4-7.2 5 5 0 0 0-9.6 1.3A3 3 0 0 0 7 14Z"/><path d="M12.8 14.5l-2.3 3.6h3l-2.2 3.4"/>',
+      snow: '<path d="M7 14h10a3.6 3.6 0 0 0 .4-7.2 5 5 0 0 0-9.6 1.3A3 3 0 0 0 7 14Z"/><path d="M8.5 18v.01M12 19.5v.01M15.5 18v.01M10 21.5v.01M14 21.5v.01"/>',
+      fog: '<path d="M4 9h16M6 13h12M4 17h16"/>',
+    };
+    const LABELS = { clear: "Clear", clouds: "Cloudy", rain: "Rain", storm: "Storm", snow: "Snow", fog: "Fog" };
+
+    // a fixed pseudo-random sequence, so stills and the live layer draw the same sky
+    const rng = (seed) => () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+    const tile = (size, n, draw, seed) => {
+      const r = rng(seed); let s = "";
+      for (let k = 0; k < n; k++) s += draw(r() * size, r() * size, r);
+      return `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'>${s}</svg>`)}")`;
+    };
+    const streak = (x, y, r) => { const l = 14 + r() * 26; return `<line x1='${x}' y1='${y}' x2='${x}' y2='${y + l}' stroke='white' stroke-opacity='${(0.18 + r() * 0.3).toFixed(2)}' stroke-width='${(0.8 + r() * 0.8).toFixed(1)}' stroke-linecap='round'/>`; };
+    const flake = (x, y, r) => `<circle cx='${x}' cy='${y}' r='${(0.8 + r() * 2.2).toFixed(1)}' fill='white' fill-opacity='${(0.45 + r() * 0.5).toFixed(2)}'/>`;
+    const layer = (el, size, img, speed) => { el.style.backgroundImage = img; el.style.backgroundSize = size + "px"; el.style.setProperty("--tile", size + "px"); el.style.setProperty("--speed", speed + "s"); };
+    layer($("rainFar"), 180, tile(180, 34, streak, 7), 0.75);
+    layer($("rainNear"), 320, tile(320, 22, (x, y, r) => streak(x, y, r).replace(/stroke-width='[\d.]+'/, "stroke-width='1.8'"), 11), 0.42);
+    layer($("snowFar"), 220, tile(220, 26, (x, y, r) => flake(x, y, () => r() * 0.5), 5), 14);
+    layer($("snowNear"), 360, tile(360, 18, flake, 9), 8);
+
+    // the glass: beads that stay and streaks that run, placed once
+    (() => {
+      const r = rng(42); let html = "";
+      for (let k = 0; k < 9; k++) html += `<i class="run" style="left:${(4 + r() * 92).toFixed(1)}%;--y:${(r() * 34).toFixed(1)}vmin;--d:${(3.5 + r() * 5).toFixed(1)}s;--delay:${(-r() * 8).toFixed(1)}s"></i>`;
+      for (let k = 0; k < 46; k++) html += `<b class="bead" style="left:${(r() * 98).toFixed(1)}%;top:${(r() * 96).toFixed(1)}%;--s:${(0.25 + r() * r() * 1.1).toFixed(2)}vmin"></b>`;
+      $("drops").innerHTML = html;
+    })();
+
+    const mins = (d) => d.getHours() * 60 + d.getMinutes();
+    // where the sun (or the moon, at night) is on its arc, 0 → 1 from horizon to horizon
+    function arc(ctx, phase, forced) {
+      if (forced) return { dawn: 0.04, day: 0.42, dusk: 0.96, night: 0.6 }[phase];
+      if (phase !== "night") return ctx.time.sunProgress;
+      const w = ctx.weather, now = mins(new Date());
+      let rise = 390, set = 1110;
+      if (w && w.sunrise && w.sunset) { rise = mins(new Date(w.sunrise)); set = mins(new Date(w.sunset)); }
+      const len = (rise - set + 1440) % 1440 || 720;
+      return Math.min(1, Math.max(0, ((now - set + 1440) % 1440) / len));
+    }
+
+    let lastSky = "";
+    function sky(ctx) {
+      const p = ctx.params, w = ctx.weather;
+      const cond = p.weather && p.weather !== "auto" ? p.weather : (w && LABELS[w.condition] ? w.condition : "none");
+      const phase = p.phase && p.phase !== "auto" ? p.phase : ctx.time.dayPhase;
+      const t = arc(ctx, phase, p.phase && p.phase !== "auto");
+      // low on the horizon at the ends of the day, about two thirds of the way up at its height
+      const x = innerWidth * (0.12 + 0.76 * t), y = innerHeight * (0.74 - 0.56 * Math.sin(Math.PI * t));
+      const key = [cond, phase, Math.round(x), Math.round(y)].join(":");
+      if (key !== lastSky) {
+        lastSky = key;
+        for (const c of [...root.classList]) if (/^(wx|ph)-/.test(c)) root.classList.remove(c);
+        root.classList.add("wx-" + cond, "ph-" + phase);
+        $("orb").style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
+        if (Wallpaper.live && !root.classList.contains("sky-ready")) setTimeout(() => root.classList.add("sky-ready"), 500);
+      }
+      // the corner: temperature when the app knows it, the condition when known or picked
+      const show = p.showTemp && cond !== "none";
+      $("corner").hidden = !show;
+      if (show) {
+        const iconKey = cond === "clear" && phase === "night" ? "moon" : cond;
+        if ($("icon").dataset.k !== iconKey) { $("icon").dataset.k = iconKey; $("icon").innerHTML = ICONS[iconKey]; }
+        $("deg").textContent = w ? w.temp : "";
+        $("what").textContent = LABELS[cond];
+      }
+      const text = p.clock === "24" ? ctx.time.clock24 : ctx.time.clock.replace(/\s?[AP]M$/i, "");
+      if ($("clock").textContent !== text) $("clock").textContent = text;
+    }
+    Wallpaper.on("render", sky);
+    Wallpaper.on("tick", sky);
+  </script>
+</body>
+</html>
