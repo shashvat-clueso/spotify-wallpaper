@@ -1,7 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// "Share Lyric Card": the active template drawn at a phone-friendly size with the line being sung right now,
+/// "Share Lyric Card": the main screen's template drawn at a phone-friendly size with the line being sung right now,
 /// saved to ~/Pictures/Spotify Wallpaper and copied to the clipboard.
 @MainActor
 final class ShareCard {
@@ -31,7 +31,9 @@ final class ShareCard {
 
     func share() {
         guard !busy else { return }
-        guard let t = engine.track, let template = store.active else {
+        // the main screen's template (each screen can have its own)
+        let mainTemplate = NSScreen.screens.first.flatMap { store.template(engine.templateID(for: $0)) } ?? store.active
+        guard let t = engine.track, let template = mainTemplate else {
             HUD.show(title: "Nothing playing", detail: "Play a song in Spotify to share a lyric card.")
             return
         }

@@ -31,9 +31,10 @@ final class Engine {
 
     private var layers: [CGDirectDisplayID: DesktopLayer] = [:]
     private var renderers: [CGDirectDisplayID: ScreenRenderer] = [:]
-    private var liveKey = ""
-    private var stillKey = ""
-    private var stillRendering = false
+    /// What each screen's live layer / still last got; a screen is redrawn only when its own key changes.
+    private var liveKeys: [CGDirectDisplayID: String] = [:]
+    private var stillKeys: [CGDirectDisplayID: String] = [:]
+    private(set) var stillRendering = false
     private var generation = 0  // bumped when template code changes on disk
     private var liveEpoch = 0   // bumped on every settings change
     private var stillEpoch = 0  // bumped once settings stop changing
@@ -136,6 +137,11 @@ final class Engine {
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.screensChanged() }
         }
+        // a screen's template changed: its keys change with it, so only that screen is redrawn
+        NotificationCenter.default.addObserver(
+            forName: TemplateStore.activeChangedNotification, object: store, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
+        }
         tick()
     }
 
@@ -146,9 +152,30 @@ final class Engine {
 
     /// Redraw everything, e.g. after switching templates.
     func invalidate() {
-        liveKey = ""
-        stillKey = ""
+        liveKeys.removeAll()
+        stillKeys.removeAll()
         tick()
+    }
+
+    /// The template `screen` shows: its own if it has one, else the default.
+    func templateID(for screen: NSScreen) -> String {
+        store.activeID(for: displayID(screen))
+    }
+
+    private func template(for screen: NSScreen) -> WallpaperTemplate? {
+        store.template(templateID(for: screen)) ?? store.active
+    }
+
+    /// One key per screen; a screen whose key changed needs redrawing. Pure, for tests.
+    nonisolated static func screenKeys(trackID: String, templates: [CGDirectDisplayID: String], generation: Int,
+                                       epoch: Int) -> [CGDirectDisplayID: String] {
+        templates.mapValues { "\(trackID)|\($0)|\(generation)|\(epoch)" }
+    }
+
+    /// Screens in `new` whose key differs from `old`, in display order.
+    nonisolated static func changedScreens(_ new: [CGDirectDisplayID: String], from old: [CGDirectDisplayID: String])
+        -> [CGDirectDisplayID] {
+        new.keys.filter { new[$0] != old[$0] }.sorted()
     }
 
     /// Settings changed: the live layer updates immediately, the still once the sliders stop moving.
@@ -182,8 +209,8 @@ final class Engine {
         guard let t = track else {
             hideLayers()
             setter.restore()
-            liveKey = ""
-            stillKey = ""
+            liveKeys.removeAll()
+            stillKeys.removeAll()
             if previousID != nil { onStateChange?() }
             return
         }
@@ -191,45 +218,53 @@ final class Engine {
             loadingTrackID = t.id
             Task { await load(t) }
         }
-        guard loadedTrackID == t.id, !paused, let template = store.active else { return }
+        guard loadedTrackID == t.id, !paused, store.active != nil else { return }
 
-        // live layers
-        syncLayers(template)
-        let lk = "\(t.id)|\(template.id)|\(generation)|\(liveEpoch)"
-        if lk != liveKey {
-            liveKey = lk
-            for (id, layer) in layers {
-                let screen = NSScreen.screens.first { displayID($0) == id }
-                var payload = statePayload(for: screen)
-                payload["params"] = store.values(template.id)
-                payload["fps"] = refreshRate
-                payload["focus"] = focus
-                layer.sendState(jsonString(payload))
-            }
-            onStateChange?()
+        // each screen's template
+        var screenTemplates: [CGDirectDisplayID: WallpaperTemplate] = [:]
+        for screen in NSScreen.screens { screenTemplates[displayID(screen)] = template(for: screen) }
+        let ids = screenTemplates.mapValues(\.id)
+
+        // live layers: only the screens whose template/track/settings changed get new state
+        syncLayers(screenTemplates)
+        let live = Self.screenKeys(trackID: t.id, templates: ids, generation: generation, epoch: liveEpoch)
+        let liveChanged = Self.changedScreens(live, from: liveKeys)
+        for id in liveChanged {
+            guard let layer = layers[id], let template = screenTemplates[id] else { continue }
+            liveKeys[id] = live[id]
+            var payload = statePayload(for: NSScreen.screens.first { displayID($0) == id })
+            payload["params"] = store.values(template.id)
+            payload["fps"] = refreshRate
+            payload["focus"] = focus
+            layer.sendState(jsonString(payload))
         }
+        if !liveChanged.isEmpty { onStateChange?() }
         let clock = jsonString(["position": t.position, "isPlaying": t.isPlaying, "stamp": pollStamp])
         layers.values.forEach { $0.sendClock(clock); $0.show() }
         onClock?(clock)
 
-        // real wallpaper still
-        let sk = "\(t.id)|\(template.id)|\(generation)|\(stillEpoch)"
-        if sk != stillKey && !stillRendering {
-            stillKey = sk
-            Task { await renderStill(template) }
+        // real wallpaper still: only the screens whose key changed are redrawn
+        let still = Self.screenKeys(trackID: t.id, templates: ids, generation: generation, epoch: stillEpoch)
+        let stillChanged = Self.changedScreens(still, from: stillKeys)
+        if !stillChanged.isEmpty && !stillRendering {
+            for id in stillChanged { stillKeys[id] = still[id] }
+            let screens = NSScreen.screens.filter { stillChanged.contains(displayID($0)) }
+            Task { await renderStill(screens) }
         }
     }
 
-    private func syncLayers(_ template: WallpaperTemplate) {
-        var url = URLComponents(url: template.url, resolvingAgainstBaseURL: false)!
-        url.queryItems = [.init(name: "v", value: String(generation)), .init(name: "live", value: "1")]
+    /// Each screen's layer shows that screen's template (a layer only reloads when its own URL changes).
+    private func syncLayers(_ templates: [CGDirectDisplayID: WallpaperTemplate]) {
         for screen in NSScreen.screens {
             let id = displayID(screen)
+            guard let template = templates[id] else { continue }
             if layers[id]?.frame != screen.frame {
                 layers[id]?.close()
                 layers[id] = DesktopLayer(screen: screen, configuration: makeWebConfiguration(throttleWhenHidden: true))
-                liveKey = ""
+                liveKeys[id] = nil
             }
+            var url = URLComponents(url: template.url, resolvingAgainstBaseURL: false)!
+            url.queryItems = [.init(name: "v", value: String(generation)), .init(name: "live", value: "1")]
             layers[id]?.load(url.url!)
         }
     }
@@ -301,13 +336,14 @@ final class Engine {
 
     // MARK: still for the real wallpaper
 
-    private func renderStill(_ template: WallpaperTemplate) async {
+    private func renderStill(_ screens: [NSScreen]) async {
         stillRendering = true
         defer { stillRendering = false }
-        var url = URLComponents(url: template.url, resolvingAgainstBaseURL: false)!
-        url.queryItems = [.init(name: "v", value: String(generation))]
         let trackID = track?.id
-        for screen in NSScreen.screens {
+        for screen in screens {
+            guard let template = template(for: screen) else { continue }
+            var url = URLComponents(url: template.url, resolvingAgainstBaseURL: false)!
+            url.queryItems = [.init(name: "v", value: String(generation))]
             let id = displayID(screen), size = screen.frame.size
             if renderers[id]?.size != size {
                 renderers[id]?.close()

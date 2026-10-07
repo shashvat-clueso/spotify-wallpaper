@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quick Switcher</title>
+<link rel="stylesheet" href="switcher.css">
+</head>
+<body>
+  <div class="sheet" id="sheet">
+    <label class="q">
+      <svg class="glass" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4L14 14"/></svg>
+      <input id="query" type="text" autocomplete="off" spellcheck="false" placeholder="Search templates and actions"
+             aria-label="Search templates and actions" aria-controls="list" aria-autocomplete="list" role="combobox" aria-expanded="true">
+    </label>
+    <div class="body">
+      <div class="list" id="list" role="listbox" aria-label="Templates and actions"></div>
+      <aside class="prev" id="prev" aria-live="polite"></aside>
+    </div>
+    <footer class="foot">
+      <span id="hints"></span>
+      <span class="hk">⌃⌥⌘W</span>
+    </footer>
+  </div>
+  <script src="switcher.js"></script>
+</body>
+</html>

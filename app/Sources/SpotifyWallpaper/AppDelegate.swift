@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var manualFocus = false
     /// .swtemplate files / install links that arrived before launch finished.
     private var pendingOpen: [URL]? = []
+    private var quickSwitcher: QuickSwitcher?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let probe = LyricsProbe.request {
@@ -81,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         HotKeys.shared.register(kVK_ANSI_L) { [weak self] in self?.shareCard.share() }
         HotKeys.shared.register(kVK_ANSI_F) { [weak self] in self?.toggleFocusMode() }
+        HotKeys.shared.register(kVK_ANSI_W) { [weak self] in self?.toggleQuickSwitcher() }
     }
 
     /// Double-clicked .swtemplate files and spotify-wallpaper://install?url=… links.
@@ -218,6 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         templates.submenu = sub
         menu.addItem(templates)
         add(menu, "Customize…", #selector(openSettings), ",")
+        add(menu, "Quick Switcher…", #selector(toggleQuickSwitcher), "w").keyEquivalentModifierMask = [.control, .option, .command]
         add(menu, "Template Builder…", #selector(newBuilderTemplate), "")
         add(menu, "History Wall…", #selector(openHistory), "")
         menu.addItem(lyricsMenu())
@@ -416,5 +419,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         editItem.submenu = edit
         main.addItem(editItem)
         NSApp.mainMenu = main
+    }
+}
+
+// MARK: - Quick Switcher (⌃⌥⌘W)
+
+extension AppDelegate {
+    @objc fileprivate func toggleQuickSwitcher() {
+        if quickSwitcher == nil {
+            let qs = QuickSwitcher(engine: engine, store: store)
+            qs.onShareCard = { [weak self] in self?.shareCard.share() }
+            qs.onToggleFocus = { [weak self] in self?.toggleFocusMode() }
+            qs.isFocusOn = { [weak self] in self?.manualFocus ?? false }
+            qs.onOpenHistory = { [weak self] in self?.openHistory() }
+            // Home (other stream) replaces this: open the main window on that template
+            qs.onOpenHome = { [weak self] id in
+                self?.openSettings()
+                if let id { self?.settings?.sendInit(select: id) }
+            }
+            quickSwitcher = qs
+        }
+        quickSwitcher?.toggle()
     }
 }
