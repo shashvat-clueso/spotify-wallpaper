@@ -34,6 +34,7 @@
   lyrics-block .line { font-size: calc(var(--param-lyricSize) * 0.56); font-weight: 400; line-height: 1.22; letter-spacing: -0.005em;
     margin-bottom: 1.5vmin; opacity: calc(0.72 - var(--dist) * 0.12); }
   lyrics-block .line.next.out { visibility: visible; }
+  lyrics-block .tr { display: block; font-size: 0.5em; font-weight: 400; letter-spacing: 0; opacity: 0.7; }
   lyrics-block .past { opacity: 0.38; }
   lyrics-block .current { font-size: var(--param-lyricSize); font-weight: 700; letter-spacing: -0.025em; line-height: 1.08; opacity: 1; }
   .sw-live lyrics-block .lines { transition-duration: 0.7s; transition-timing-function: cubic-bezier(.3, .1, .2, 1); }
@@ -47,7 +48,7 @@
     <fit-text class="title" max-lines="3" min="5vmin" max="10vmin" data-bind="track.title"></fit-text>
     <div class="artist" data-bind="track.artist"></div>
     <div class="meta"><span data-bind="track.elapsed"></span><progress-bar></progress-bar><span data-bind="track.length"></span></div>
-    <lyrics-block layout="top" data-attr-before="params.linesBefore" after="999"></lyrics-block>
+    <lyrics-block layout="top" data-attr-translations="params.translations" data-attr-before="params.linesBefore" after="999"></lyrics-block>
     <div class="empty" data-show="!lyrics.hasLyrics" data-bind="track.album"></div>
     <div class="sw-grain" data-show="params.grain"></div>
   </div>

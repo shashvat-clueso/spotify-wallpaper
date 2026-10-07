@@ -248,8 +248,9 @@
         g.strokeStyle = css(shade(this.col, lit > 0 ? 42 : -40));
         g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
       }
-      const r = Math.min(this.w, this.len) * 0.16, gx = this.x + Math.cos(LIGHT) * r * 1.6, gy = this.y + Math.sin(LIGHT) * r * 1.6;
-      g.globalAlpha = 0.5 * this.ridge; g.fillStyle = css(shade(this.col, 70));
+      // a faint glint: bright enough to read as wet oil, not so bright that the blob looks like an eye
+      const r = Math.min(this.w, this.len) * 0.11, gx = this.x + Math.cos(LIGHT) * r * 2, gy = this.y + Math.sin(LIGHT) * r * 2;
+      g.globalAlpha = 0.2 * this.ridge; g.fillStyle = css(shade(this.col, 70));
       g.beginPath(); g.ellipse(gx, gy, r, r * 0.45, this.a, 0, TAU); g.fill();
     }
   }

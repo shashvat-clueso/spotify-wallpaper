@@ -532,7 +532,7 @@
         k.strokeStyle = k.fillStyle = o.c;
         if (o.kind === "impasto") {
           const r = Math.min(o.len, o.w) * 0.3;
-          k.globalAlpha = a * 0.6;
+          k.globalAlpha = a * 0.3;
           k.beginPath(); k.ellipse(o.x + o.nx * r * 0.4 - o.dx * r * 0.2, o.y + o.ny * r * 0.4 - o.dy * r * 0.2, r * 1.3, r * 0.7, Math.atan2(o.dy, o.dx), 0, B.TAU); k.fill();
           continue;
         }

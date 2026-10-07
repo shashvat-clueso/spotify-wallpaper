@@ -2,6 +2,37 @@
 
 All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](https://semver.org).
 
+## 1.5.0 — 2026-10-07
+
+### Added
+- **Three new templates:** **Cassette** (a mixtape whose reels wind through the song, with the current line handwritten
+  on the label), **Liner Notes** (the CD booklet, with the whole song typeset beside the cover) and **Weather & Time**
+  (a sky that follows the time of day and your local weather, with rain running down the glass).
+- **Painted Cover comes alive:** the most striking word of each lyric line is lettered into the painting in brush
+  strokes, then painted over; before a new cover goes on, the last painting replays as a ~4-second timelapse; fresh
+  paint looks wet and dries to matte; a new "Match the genre" stroke style (rock in heavy impasto and knife,
+  electronic in crisp horizontal slabs, jazz in warm dry brush, classical and ambient in long soft sweeps); and an
+  optional "Keep earlier songs around the edges" mode that builds a collage of the session.
+- **Sync to the Beat** (off by default, needs Screen Recording): Spotify's sound is analysed live (nothing is
+  recorded) so paintings land strokes on the beat and templates can pulse with the music.
+- **History Wall:** every song's wallpaper is kept in a gallery grouped by month. Filter it, flip through it with the
+  arrow keys, and export a month as a contact sheet or an animated GIF. Turn it off or clear it from the menu.
+- **Share Lyric Card** (⌃⌥⌘L): the current template with the line being sung, as a 9:16 Story or a square image,
+  saved to Pictures and copied to the clipboard.
+- **Focus Mode:** lyrics hide themselves while you share your screen (Zoom, Google Meet, Teams, Slack, Discord,
+  FaceTime, Webex, Screen Sharing), or whenever you press ⌃⌥⌘F.
+- **Translations:** lyrics from NetEase and QQ Music can show a translation under each line, for songs in a language
+  you don't read (Lyric Card, Glow, Minimal and Painted Cover).
+- **Duets:** each line knows who sings it; Lyric Card and Glow lay a duet out voice by voice.
+- **Share templates:** export any template as a `.swtemplate` file, double-click one to install it, or install from a
+  `spotify-wallpaper://install?url=…` link.
+- For template authors: `track.genre` (from Apple's iTunes catalogue), `weather`, `time.dayPhase`/`sunProgress`,
+  `focus`, per-line `translation` and `singer`, a `beat` event with `--beat` and `--level`, and the handwriting fonts
+  Bradley Hand, Noteworthy and Chalkboard SE. See TEMPLATE_GUIDE.
+
+### Changed
+- Weather uses your approximate location (asked once); turn it off with "Use Weather" in the menu.
+
 ## 1.4.1 — 2026-10-07
 
 ### Added

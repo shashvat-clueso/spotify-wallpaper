@@ -161,6 +161,12 @@
       "default": 4.4
     },
     {
+      "key": "translations",
+      "type": "bool",
+      "label": "Show translations",
+      "default": true
+    },
+    {
       "key": "linesBefore",
       "type": "int",
       "label": "Lines before",
