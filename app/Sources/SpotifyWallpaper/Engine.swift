@@ -45,6 +45,12 @@ final class Engine {
     /// so the wallpaper is only given back once nothing has played for `goneGrace` seconds.
     private var goneSince: Date?
     private static let goneGrace: TimeInterval = 5
+    // data services (see the extension at the end)
+    let weather = WeatherService()
+    private let audio = AudioAnalyzer()
+    private lazy var genres = GenreService(paths: paths)
+    private var genre = (trackID: "", name: "")
+    private var beat = (starting: false, retryAt: Date.distantPast, trackID: "")
 
     /// Called when the preview in the Customize window should get new state / a clock tick.
     var onStateChange: (() -> Void)?
@@ -106,6 +112,7 @@ final class Engine {
             self.tick()
         }
         spotify.start()
+        startDataServices()
         Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.checkTemplateEdits() }
         }
@@ -159,6 +166,7 @@ final class Engine {
         let previousID = track?.id
         track = latestTrack
         pollStamp = latestStamp
+        updateBeatCapture()
         guard let t = track else {
             hideLayers()
             setter.restore()
@@ -216,6 +224,7 @@ final class Engine {
     private func hideLayers() { layers.values.forEach { $0.hide() } }
 
     private func load(_ t: Track) async {
+        fetchGenre(t)
         async let cover = download(t.artworkURL)
         async let found = lyricsService.candidates(for: t)
         let (c, cs) = await (cover, found)
@@ -264,7 +273,7 @@ final class Engine {
     private func applyLyrics() {
         var (resolved, source) = LyricsService.resolve(candidates, choice: lyricsChoice, duration: track?.duration ?? 0)
         let offset = lyricsOffset
-        if offset != 0 { resolved.lines = resolved.lines.map { LyricLine(t: $0.t + offset, text: $0.text) } }
+        if offset != 0 { for i in resolved.lines.indices { resolved.lines[i].t += offset } }
         lyrics = resolved
         lyricsSourceText = source
         liveEpoch += 1
@@ -310,15 +319,17 @@ final class Engine {
         ]
         guard let t = track, loadedTrackID == t.id else { return sample(screenInfo) }
         let safeID = t.id.replacingOccurrences(of: "[^A-Za-z0-9]", with: "_", options: .regularExpression)
-        return [
+        var payload: [String: Any] = [
             "track": ["id": t.id, "title": t.title, "artist": t.artist, "album": t.album,
                       "cover": "sw://app/cover/\(safeID).jpg", "coverKey": coverKey, "duration": t.duration,
-                      "position": t.position, "isPlaying": t.isPlaying, "stamp": pollStamp],
-            "lyrics": ["lines": lyrics.lines.map { ["t": $0.t, "text": $0.text] },
-                       "index": lyrics.index(at: t.position), "synced": lyrics.synced],
+                      "position": t.position, "isPlaying": t.isPlaying, "stamp": pollStamp,
+                      "genre": genre.trackID == t.id ? genre.name : ""],
+            "lyrics": lyricsPayload(lyrics, index: lyrics.index(at: t.position)),
             "colors": colors,
             "screen": screenInfo,
         ]
+        payload["weather"] = weather.current?.json
+        return payload
     }
 
     private lazy var sampleColors: [String: Any] =
@@ -330,15 +341,18 @@ final class Engine {
                      "The city sleeps but we're still wide awake", "Counting every chance we didn't take",
                      "", "Stay a little longer, stay till morning light",
                      "We can fold the stars up, keep them out of sight", "Stay a little longer, it's alright"]
+        var sampleLyrics = Lyrics(lines: lines.enumerated().map { LyricLine(t: 52.0 + Double($0.offset) * 6, text: $0.element) },
+                                  synced: true)
+        sampleLyrics.lines[3].translation = "Contando cada oportunidad que no tomamos"
         return [
             "track": ["id": "sample", "title": "Till Morning Light", "artist": "Sample Artist",
                       "album": "Preview Sessions", "cover": "sw://app/ui/sample-cover.jpg",
                       "duration": 214.0, "position": 71.0, "isPlaying": false,
-                      "stamp": Date().timeIntervalSince1970 * 1000],
-            "lyrics": ["lines": lines.enumerated().map { ["t": 52.0 + Double($0.offset) * 6, "text": $0.element] },
-                       "index": 3, "synced": true],
+                      "stamp": Date().timeIntervalSince1970 * 1000, "genre": "Pop"],
+            "lyrics": lyricsPayload(sampleLyrics, index: 3),
             "colors": sampleColors,
             "screen": screenInfo,
+            "weather": weather.current?.json ?? Self.sampleWeather,
         ]
     }
 
@@ -353,5 +367,126 @@ final class Engine {
             invalidate()
         }
         editStamp = stamp
+    }
+}
+
+// MARK: - data services: genre, translations/duets in the payload, weather, beat sync
+
+extension Engine {
+    private static var sampleWeather: [String: Any] {
+        let midnight = Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000, now = Date().timeIntervalSince1970 * 1000
+        let sunrise = midnight + 6.5 * 3_600_000, sunset = midnight + 19 * 3_600_000
+        return ["condition": "clouds", "temperature": 18.5, "isDay": now >= sunrise && now < sunset, "sunrise": sunrise, "sunset": sunset]
+    }
+
+    private func lyricsPayload(_ l: Lyrics, index: Int) -> [String: Any] {
+        var out: [String: Any] = [
+            "lines": l.lines.map { line -> [String: Any] in
+                var d: [String: Any] = ["t": line.t, "text": line.text]
+                if let tr = line.translation { d["translation"] = tr }
+                if let s = line.singer { d["singer"] = s }
+                return d
+            },
+            "index": index, "synced": l.synced, "hasTranslation": l.hasTranslation,
+        ]
+        if !l.singers.isEmpty { out["singers"] = l.singers }
+        return out
+    }
+
+    private func startDataServices() {
+        weather.onChange = { [weak self] in
+            guard let self else { return }
+            self.liveEpoch += 1
+            self.stillEpoch += 1
+            self.tick()
+        }
+        weather.start()
+        audio.onBeat = { [weak self] json in self?.sendBeat(json) }
+        audio.onStopped = { [weak self] in
+            self?.beat.retryAt = Date().addingTimeInterval(5)
+            self?.updateBeatCapture()
+        }
+    }
+
+    /// Looked up alongside the cover and lyrics but never waited for: if it lands after the song loaded, redraw.
+    private func fetchGenre(_ t: Track) {
+        Task {
+            let name = await genres.genre(artist: t.artist, title: t.title)
+            genre = (t.id, name)
+            if loadedTrackID == t.id, !name.isEmpty {
+                liveEpoch += 1
+                stillEpoch += 1
+                tick()
+            }
+        }
+    }
+
+    /// "Use Weather" in the menu.
+    var useWeather: Bool {
+        get { weather.enabled }
+        set { weather.enabled = newValue }
+    }
+
+    // MARK: beat sync
+
+    /// "Sync to the Beat" in the menu. Off by default: listening to Spotify needs Screen Recording permission.
+    var beatSync: Bool {
+        get { UserDefaults.standard.bool(forKey: "beatSync") }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "beatSync")
+            guard newValue else { return updateBeatCapture() }
+            beat.retryAt = .distantPast
+            Task {
+                if await AudioAnalyzer.requestAccess() { updateBeatCapture() } else { beatPermissionMissing() }
+            }
+        }
+    }
+
+    /// Capture runs only while there is something to hear and someone to show it to.
+    private func updateBeatCapture() {
+        let want = beatSync && !paused && track?.isPlaying == true
+        if let id = track?.id, id != beat.trackID { beat.trackID = id; audio.reset() }
+        if !want {
+            audio.stop()
+            return
+        }
+        guard !audio.isRunning, !beat.starting, beat.retryAt < Date() else { return }
+        beat.starting = true
+        Task {
+            do {
+                try await audio.start()
+            } catch {
+                beat.retryAt = Date().addingTimeInterval(15)
+                if !CGPreflightScreenCaptureAccess() { beatPermissionMissing() }
+            }
+            beat.starting = false
+            updateBeatCapture()  // things may have changed while starting
+        }
+    }
+
+    private func sendBeat(_ json: String) {
+        guard !paused else { return }
+        layers.values.forEach { $0.sendBeat(json) }
+    }
+
+    private func beatPermissionMissing() {
+        UserDefaults.standard.set(false, forKey: "beatSync")
+        audio.stop()
+        let alert = NSAlert()
+        alert.messageText = "Sync to the Beat needs Screen Recording"
+        alert.informativeText = """
+            Spotify Wallpaper listens to Spotify's sound to find the beat; macOS files that under screen recording. \
+            Nothing is recorded or saved.
+
+            Turn on Spotify Wallpaper in System Settings › Privacy & Security › Screen & System Audio Recording, \
+            then choose Sync to the Beat again (macOS may ask you to reopen the app first).
+            """
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Not Now")
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn,
+           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }

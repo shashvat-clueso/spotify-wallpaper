@@ -14,11 +14,19 @@ struct Track: Equatable {
 struct LyricLine {
     var t: Double
     var text: String
+    /// Translated line, when a source provides one.
+    var translation: String? = nil
+    /// Duet voice, "A", "B" or "both"; only set when the song is a duet.
+    var singer: String? = nil
 }
 
 struct Lyrics {
     var lines: [LyricLine]
     var synced: Bool
+    /// Duet singers' names in voice order A, B; empty when the song isn't a duet.
+    var singers: [String] = []
+
+    var hasTranslation: Bool { lines.contains { $0.translation != nil } }
 
     static let none = Lyrics(lines: [], synced: false)
 
