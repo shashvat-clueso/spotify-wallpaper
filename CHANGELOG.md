@@ -52,6 +52,8 @@ All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](
   Bradley Hand, Noteworthy and Chalkboard SE. See TEMPLATE_GUIDE.
 
 ### Changed
+- Dry brush in Painted Cover is a real dry drag now: dozens of fine bristles that skip and run out unevenly, instead of
+  blocky faceted strokes.
 - What's New no longer breaks a wrapped list item into separate paragraphs.
 - Weather uses your approximate location (asked once); turn it off with "Use Weather" in the menu.
 
