@@ -168,6 +168,20 @@ CSS animation onto the song, the current line or the clock, on the GPU), text wi
 reference is in **[TEMPLATE_GUIDE.md](app/Resources/web/TEMPLATE_GUIDE.md)**, which is also copied into your
 templates folder.
 
+### Sharing templates
+
+A template travels as one `.swtemplate` file (the template folder, zipped). In **Customize**, select a template and
+click **Export “…”…** under the template list; send the file to anyone with Spotify Wallpaper, who double-clicks it
+(or uses **Import template…**) to install it. Built-in templates export too, so you can share a tuned copy.
+
+To install from the web, link to `spotify-wallpaper://install?url=<https address of a .swtemplate>`. The app
+downloads it (https only, up to 25 MB) and asks before installing, showing the template's name and author from its
+`manifest.json`.
+
+Every install is checked first: it needs `manifest.json` and `index.html`, may not contain links or paths outside
+its folder, and never replaces a template you have. A name that's taken gets a number (“Vinyl 2”). Templates are
+web pages, so only install ones from people you trust.
+
 ## How it works
 
 ```

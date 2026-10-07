@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="history.css">
+</head>
+<body>
+  <header class="topbar" id="topbar">
+    <span class="title">History Wall</span>
+    <span class="crumb" id="count"></span>
+    <span class="spacer"></span>
+    <label class="field search"><span class="pre" id="searchIcon"></span><input id="filter" type="text" placeholder="Filter by song, artist, album or template" spellcheck="false"></label>
+    <label class="field month"><select id="month"></select></label>
+    <span class="divider"></span>
+    <button class="btn" id="exportSheet" title="One PNG with every wallpaper shown, captioned"><span class="long">Export&nbsp;</span>Contact Sheet…</button>
+    <button class="btn" id="exportGif" title="An animated GIF of the wallpapers shown, half a second each"><span class="long">Export&nbsp;</span>GIF…</button>
+  </header>
+
+  <main class="scroll" id="wall"></main>
+
+  <div class="viewer" id="viewer" hidden>
+    <button class="icon-btn close" id="vClose" title="Close (Esc)"></button>
+    <button class="nav prev" id="vPrev" title="Previous (←)"></button>
+    <figure>
+      <img id="vImg" alt="">
+      <figcaption>
+        <div class="meta"><b id="vTitle"></b><span id="vSub"></span></div>
+        <span class="spacer"></span>
+        <span class="pos" id="vPos"></span>
+        <button class="btn ghost" id="vReveal">Show in Finder</button>
+      </figcaption>
+    </figure>
+    <button class="nav next" id="vNext" title="Next (→)"></button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="history.js"></script>
+</body>
+</html>

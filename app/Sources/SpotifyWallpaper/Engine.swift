@@ -56,6 +56,18 @@ final class Engine {
     var onStateChange: (() -> Void)?
     var onClock: ((String) -> Void)?
     var onTemplateFilesChanged: (() -> Void)?
+    /// The finished still for the primary screen (JPEG), the track and template it shows. Feeds the history.
+    var onStillRendered: ((Data, NSScreen, Track, String) -> Void)?
+
+    /// Lyrics hidden (screen sharing / Focus Mode): sent as `focus` to the live layers and the still.
+    var focus = false {
+        didSet {
+            guard focus != oldValue else { return }
+            liveEpoch += 1
+            stillEpoch += 1
+            tick()
+        }
+    }
 
     var paused: Bool {
         get { UserDefaults.standard.bool(forKey: "paused") }
@@ -191,6 +203,7 @@ final class Engine {
                 var payload = statePayload(for: screen)
                 payload["params"] = store.values(template.id)
                 payload["fps"] = refreshRate
+                payload["focus"] = focus
                 layer.sendState(jsonString(payload))
             }
             onStateChange?()
@@ -302,11 +315,13 @@ final class Engine {
             }
             var payload = statePayload(for: screen)
             payload["params"] = store.values(template.id)
+            payload["focus"] = focus
             guard let image = await renderers[id]?.render(url: url.url!, payload: payload) else { continue }
             let jpeg = await Task.detached { jpegData(image) }.value
             // the song may have changed or stopped while drawing
             guard let jpeg, !paused, track?.id == trackID, track != nil else { return }
             setter.show(jpeg, on: screen)
+            if let t = track, screen == NSScreen.screens.first { onStillRendered?(jpeg, screen, t, template.id) }
         }
     }
 

@@ -6,6 +6,7 @@ body { display: grid; grid-template-rows: var(--bar) 1fr; }
 .right { border-left: 1px solid var(--line); }
 .left-foot, .right-foot { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; border-top: 1px solid var(--line); }
 .left-foot .btn { justify-content: flex-start; color: var(--text-2); }
+#exportTpl { display: block; text-align: left; line-height: 28px; overflow: hidden; text-overflow: ellipsis; }
 
 #templates { padding: 2px 0 10px; }
 .tpl-row { height: auto; min-height: 44px; padding: 6px 8px; align-items: center; }

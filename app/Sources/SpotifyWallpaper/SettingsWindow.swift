@@ -11,6 +11,7 @@ final class SettingsWindowController: NSWindowController, WKScriptMessageHandler
     private var strip: DragStrip!
     private static let barHeight: CGFloat = 44
     var onOpenBuilder: ((String?) -> Void)?
+    var installer: TemplateInstaller?
 
     init(engine: Engine, store: TemplateStore, paths: Paths) {
         self.engine = engine
@@ -96,6 +97,10 @@ final class SettingsWindowController: NSWindowController, WKScriptMessageHandler
             onOpenBuilder?(nil)
         case "openBuilder":
             onOpenBuilder?(id)
+        case "exportTemplate":
+            installer?.export(id, from: window)
+        case "importTemplate":
+            installer?.importWithPanel(from: window)
         case "reload":
             store.reload()
             engine.invalidate()

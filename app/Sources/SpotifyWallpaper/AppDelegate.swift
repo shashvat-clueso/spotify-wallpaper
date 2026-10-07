@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import ServiceManagement
 
 private extension Double {
@@ -18,6 +19,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var builder: BuilderWindowController?
     private var whatsNew: WhatsNewWindowController?
     private let updater = Updater()
+    private lazy var history = HistoryStore(paths: paths)
+    private var historyWindow: HistoryWindowController?
+    private lazy var shareCard = ShareCard(engine: engine, store: store)
+    private let focusMonitor = FocusMonitor()
+    private lazy var installer = TemplateInstaller(store: store, paths: paths)
+    /// Focus Mode switched on by hand (not remembered across launches).
+    private var manualFocus = false
+    /// .swtemplate files / install links that arrived before launch finished.
+    private var pendingOpen: [URL]? = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let probe = LyricsProbe.request {
@@ -39,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         engine.onStateChange = { [weak self] in self?.settings?.pushState(); self?.builder?.pushState() }
         engine.onClock = { [weak self] clock in self?.settings?.pushClock(clock); self?.builder?.pushClock(clock) }
         engine.onTemplateFilesChanged = { [weak self] in self?.settings?.templateFilesChanged() }
+        setUpAppFeatures()
         engine.start()
         updater.start()
 
@@ -47,6 +58,121 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             UserDefaults.standard.set(true, forKey: "launchedBefore")
             openSettings()
         }
+        let queued = pendingOpen ?? []
+        pendingOpen = nil
+        queued.forEach { installer.open($0) }
+    }
+
+    // MARK: history, lyric cards, focus, template sharing
+
+    private func setUpAppFeatures() {
+        engine.onStillRendered = { [weak self] jpeg, _, track, templateID in
+            guard let self, !self.engine.focus else { return }  // no history while lyrics are hidden
+            self.history.record(jpeg, track: track, templateID: templateID,
+                                colors: self.engine.statePayload(for: nil)["colors"] as? [String: Any] ?? [:])
+        }
+        history.onChange = { [weak self] in self?.historyWindow?.historyChanged() }
+        focusMonitor.onChange = { [weak self] _ in self?.updateFocus() }
+        if hideLyricsWhileSharing { focusMonitor.start() }
+        installer.onInstalled = { [weak self] id in
+            guard let self else { return }
+            self.openSettings()
+            self.settings?.sendInit(select: id)
+        }
+        HotKeys.shared.register(kVK_ANSI_L) { [weak self] in self?.shareCard.share() }
+        HotKeys.shared.register(kVK_ANSI_F) { [weak self] in self?.toggleFocusMode() }
+    }
+
+    /// Double-clicked .swtemplate files and spotify-wallpaper://install?url=… links.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        if pendingOpen != nil { pendingOpen?.append(contentsOf: urls) } else { urls.forEach { installer.open($0) } }
+    }
+
+    private var hideLyricsWhileSharing: Bool {
+        get { UserDefaults.standard.object(forKey: "hideLyricsWhileSharing") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "hideLyricsWhileSharing") }
+    }
+
+    private func updateFocus() {
+        engine.focus = manualFocus || (hideLyricsWhileSharing && focusMonitor.sharing)
+    }
+
+    @objc private func toggleFocusMode() {
+        manualFocus.toggle()
+        updateFocus()
+        HUD.show(title: manualFocus ? "Focus Mode on" : "Focus Mode off",
+                 detail: manualFocus ? "Lyrics are hidden until you turn it off (⌃⌥⌘F)." : nil)
+    }
+
+    @objc private func toggleHideWhileSharing() {
+        hideLyricsWhileSharing.toggle()
+        if hideLyricsWhileSharing { focusMonitor.start() } else { focusMonitor.stop() }
+        updateFocus()
+    }
+
+    @objc private func requestScreenRecording() {
+        if !CGRequestScreenCaptureAccess() {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+        }
+    }
+
+    @objc private func shareLyricCard() { shareCard.share() }
+
+    @objc private func pickShareFormat(_ sender: NSMenuItem) {
+        if let raw = sender.representedObject as? String, let f = ShareCard.Format(rawValue: raw) { shareCard.format = f }
+    }
+
+    @objc private func openHistory() {
+        if historyWindow == nil { historyWindow = HistoryWindowController(engine: engine, history: history, store: store) }
+        historyWindow?.show()
+    }
+
+    @objc private func toggleHistory() { history.enabled.toggle() }
+
+    @objc private func clearHistory() {
+        history.load()
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Clear your wallpaper history?"
+        alert.informativeText = "This deletes all \(history.entries.count) saved wallpapers from the History Wall. It can't be undone."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Clear History")
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons.first?.hasDestructiveAction = true
+        if alert.runModal() == .alertFirstButtonReturn { history.clear() }
+    }
+
+    private func appFeatureItems(_ menu: NSMenu) {
+        let ctrlOptCmd: NSEvent.ModifierFlags = [.control, .option, .command]
+        let share = add(menu, "Share Lyric Card", #selector(shareLyricCard), "l")
+        share.keyEquivalentModifierMask = ctrlOptCmd
+        share.isEnabled = engine.track != nil
+        let format = NSMenuItem(title: "Lyric Card Size", action: nil, keyEquivalent: "")
+        let formats = NSMenu()
+        for f in ShareCard.Format.allCases {
+            let item = NSMenuItem(title: f.title, action: #selector(pickShareFormat(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = f.rawValue
+            item.state = shareCard.format == f ? .on : .off
+            formats.addItem(item)
+        }
+        format.submenu = formats
+        menu.addItem(format)
+        menu.addItem(.separator())
+
+        let focus = add(menu, "Focus Mode", #selector(toggleFocusMode), "f")
+        focus.keyEquivalentModifierMask = ctrlOptCmd
+        focus.state = manualFocus ? .on : .off
+        add(menu, "Hide Lyrics While Screen Sharing", #selector(toggleHideWhileSharing), "").state = hideLyricsWhileSharing ? .on : .off
+        if hideLyricsWhileSharing && focusMonitor.sharing {
+            let note = NSMenuItem(title: "Screen sharing detected (\(focusMonitor.reason)): lyrics hidden", action: nil, keyEquivalent: "")
+            note.isEnabled = false
+            menu.addItem(note)
+        } else if hideLyricsWhileSharing && !FocusMonitor.canReadTitles {
+            add(menu, "Detect Sharing in Browsers Too…", #selector(requestScreenRecording), "").toolTip =
+                "Window titles (like Chrome's \"is sharing your screen\" bar) need Screen Recording permission. Without it, only Zoom, Teams and Screen Sharing are noticed."
+        }
+        menu.addItem(.separator())
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -93,6 +219,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(templates)
         add(menu, "Customize…", #selector(openSettings), ",")
         add(menu, "Template Builder…", #selector(newBuilderTemplate), "")
+        add(menu, "History Wall…", #selector(openHistory), "")
         menu.addItem(lyricsMenu())
 
         let rate = NSMenuItem(title: "Refresh Rate", action: nil, keyEquivalent: "")
@@ -113,6 +240,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add(menu, "Use Weather", #selector(toggleWeather), "").state = engine.useWeather ? .on : .off
         add(menu, "Sync to the Beat (needs Screen Recording)", #selector(toggleBeatSync), "").state = engine.beatSync ? .on : .off
         add(menu, engine.paused ? "Resume Wallpaper" : "Pause Wallpaper", #selector(togglePause), "")
+        menu.addItem(.separator())
+        appFeatureItems(menu)
+        add(menu, "Keep a History of Wallpapers", #selector(toggleHistory), "").state = history.enabled ? .on : .off
+        add(menu, "Clear History…", #selector(clearHistory), "")
         menu.addItem(.separator())
         add(menu, "Open Templates Folder", #selector(openTemplatesFolder), "")
         menu.addItem(.separator())
@@ -220,6 +351,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if settings == nil {
             settings = SettingsWindowController(engine: engine, store: store, paths: paths)
             settings?.onOpenBuilder = { [weak self] id in self?.openBuilder(id) }
+            settings?.installer = installer
         }
         settings?.show()
     }
