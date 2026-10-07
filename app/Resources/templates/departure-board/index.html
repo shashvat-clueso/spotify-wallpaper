@@ -1,0 +1,314 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<script src="dotmatrix.js"></script>
+<style>
+  /* --u scales the header and footer; the flap grid is measured in JS (--cw/--ch: one flap) so it always fills the width. */
+  :root { --u: min(1vw, 1.6vh); --cw: 40px; --ch: 56px; --gap: 4px; --amber: var(--param-amber); }
+  body { background: #0a0b0d; color: #f2f0e9; font-family: -apple-system, system-ui, sans-serif; }
+  .housing { position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 80% 55% at 50% 0%, rgba(255, 255, 255, 0.055), transparent 70%),
+      radial-gradient(ellipse 100% 80% at 50% 110%, rgba(0, 0, 0, 0.6), transparent 70%),
+      linear-gradient(#111216, #08090b); }
+  .sw-grain { opacity: 0.07; }
+
+  .board { position: absolute; inset: 0; display: grid; grid-template-rows: auto 1fr auto; padding: calc(var(--u) * 4.2) var(--pad, 5vw) calc(var(--u) * 4); }
+  canvas.dots { display: block; }
+  .amber { filter: drop-shadow(0 0 calc(var(--u) * 0.35) color-mix(in srgb, var(--amber) 55%, transparent)); }
+  .white { filter: drop-shadow(0 0 calc(var(--u) * 0.3) rgba(255, 255, 255, 0.25)); }
+
+  /* ---------- header ---------- */
+  .hd { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u) * 3); }
+  .hd .np { width: calc(var(--u) * 26); height: calc(var(--u) * 2.4); }
+  /* the clock and the side tag are little LED modules */
+  .module { background: #060607; border-radius: calc(var(--u) * 0.4); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 calc(var(--u) * 0.3) calc(var(--u) * 0.6) rgba(0, 0, 0, 0.8); }
+  .hd .clock { width: calc(var(--u) * 12); height: calc(var(--u) * 3.4); }
+  .hd .mid { flex: 1; min-width: 0; display: flex; justify-content: center; gap: calc(var(--u) * 2.4); font: 500 calc(var(--u) * 1.05) / 1 ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.22em; text-transform: uppercase; color: #6c7078; white-space: nowrap; overflow: hidden; }
+  .hd .mid span { overflow: hidden; text-overflow: ellipsis; }
+  .hd .mid b { font-weight: 500; color: #a9adb4; }
+
+  /* ---------- the flaps ---------- */
+  .mid-board { align-self: center; }
+  .rows { display: grid; gap: calc(var(--gap) * 2.6); padding: calc(var(--gap) * 3) 0; position: relative; }
+  .row { display: flex; gap: var(--gap); position: relative; }
+  /* the rail each row of flaps hangs from */
+  .row::before { content: ""; position: absolute; left: calc(var(--gap) * -2); right: calc(var(--gap) * -2); top: 50%; height: calc(var(--ch) * 0.06); margin-top: calc(var(--ch) * -0.03);
+    background: linear-gradient(#26282d, #0c0d0f); z-index: 0; border-radius: 2px; }
+  .flap { position: relative; flex: none; width: var(--cw); height: var(--ch); perspective: calc(var(--ch) * 6); z-index: 1;
+    font: 640 calc(var(--ch) * 0.7) / 1 "SF Var", -apple-system, "Helvetica Neue", sans-serif; font-stretch: 82%; color: var(--param-flapText); }
+  .h { position: absolute; left: 0; right: 0; height: 50%; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+  .h.t { top: 0; border-radius: calc(var(--cw) * 0.09) calc(var(--cw) * 0.09) 0 0;
+    background: linear-gradient(#24262b, #1b1d21); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07); }
+  .h.b { bottom: 0; border-radius: 0 0 calc(var(--cw) * 0.09) calc(var(--cw) * 0.09);
+    background: linear-gradient(#1a1c20, #141518); box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.5); }
+  .h b { position: absolute; left: 0; right: 0; height: 200%; display: grid; place-items: center; font-weight: inherit; padding-top: calc(var(--ch) * 0.02); }
+  .h.t b { top: 0; }
+  .h.b b { top: -100%; }
+  /* the split, and the shadow the top flap casts on the lower one */
+  .flap::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: max(1px, calc(var(--ch) * 0.025)); margin-top: calc(var(--ch) * -0.0125);
+    background: #050506; z-index: 3; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.6); }
+  .flap::before { content: ""; position: absolute; inset: 0; border-radius: calc(var(--cw) * 0.09); z-index: 4; pointer-events: none;
+    box-shadow: 0 calc(var(--ch) * 0.04) calc(var(--ch) * 0.06) rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(0, 0, 0, 0.55); }
+  .flap.blank b { visibility: hidden; }
+  .leaf { position: absolute; left: 0; right: 0; top: 0; height: 50%; transform-origin: 50% 100%; transform-style: preserve-3d; z-index: 2; visibility: hidden; }
+  .leaf .h { height: 100%; }
+  .leaf .h.b { top: 0; bottom: auto; transform: rotateX(180deg); }
+  .leaf .h.t::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent, rgba(0, 0, 0, 0.35)); }
+
+  /* ---------- calling at ---------- */
+  .next { display: flex; align-items: center; gap: calc(var(--u) * 1.6); margin-top: calc(var(--u) * 1.2); min-width: 0; }
+  .badge { flex: none; height: calc(var(--u) * 2.3); min-width: calc(var(--u) * 2.3); padding: 0 calc(var(--u) * 0.7); border-radius: calc(var(--u) * 0.45); display: grid; place-items: center;
+    background: var(--badge, var(--param-lineColor)); color: var(--badgeInk, #fff); font: 700 calc(var(--u) * 1.15) / 1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.04em; }
+  .next .lbl { flex: none; font: 500 calc(var(--u) * 1.05) / 1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.2em; text-transform: uppercase; color: #6c7078; }
+  .next canvas { flex: 1; min-width: 0; height: calc(var(--u) * 1.9); opacity: 0.62; }
+  .next .status { flex: none; width: calc(var(--u) * 11); height: calc(var(--u) * 1.9); }
+  .gapRow { height: calc(var(--u) * 2.3); margin-top: calc(var(--u) * 1.2); }
+
+  /* ---------- footer ---------- */
+  .ft { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: calc(var(--u) * 2.4); align-items: center; padding-top: calc(var(--u) * 2.6);
+    border-top: 1px solid rgba(255, 255, 255, 0.07); }
+  .ft .cover { width: calc(var(--u) * 8.6); aspect-ratio: 1; border-radius: calc(var(--u) * 0.45); object-fit: cover; display: block;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 calc(var(--u) * 0.6) calc(var(--u) * 1.6) rgba(0, 0, 0, 0.6); }
+  .ft .who { min-width: 0; }
+  .ft .title { width: 100%; height: calc(var(--u) * 3.6); }
+  .ft .a { font: 500 calc(var(--u) * 1.2) / 1.4 ui-monospace, "SF Mono", Menlo, monospace; color: #8b8f96; text-transform: uppercase; letter-spacing: 0.14em;
+    margin-top: calc(var(--u) * 1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ft .a i { font-style: normal; color: #4d5158; padding: 0 0.6em; }
+  .ft .tag { text-align: right; font: 500 calc(var(--u) * 1.1) / 1 ui-monospace, "SF Mono", Menlo, monospace; color: #8b8f96; letter-spacing: 0.2em; text-transform: uppercase; }
+  .ft .tag canvas { width: calc(var(--u) * 10); height: calc(var(--u) * 5); margin-top: calc(var(--u) * 0.9); margin-left: auto; }
+
+  /* focus: the board shows the title; the next line hides */
+  .sw-focus #nextRow > :not(.status) { visibility: hidden; }
+
+  @media (max-aspect-ratio: 1/1) {
+    :root { --u: min(1.5vw, 1vh); }
+    .hd .mid { display: none; }
+    .next .lbl { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="housing"></div>
+  <div class="board">
+    <div class="hd">
+      <canvas class="dots np amber" id="np"></canvas>
+      <div class="mid"><span>Platform <b data-bind="track.genre|upper"></b></span><span>Departures <b data-bind="track.length"></b></span></div>
+      <canvas class="dots clock white module" id="clock"></canvas>
+    </div>
+    <div class="mid-board">
+      <div class="rows" id="rows"></div>
+      <div class="next" id="nextRow">
+        <div class="badge" id="badge"></div>
+        <span class="lbl">Calling at</span>
+        <canvas class="dots" id="next" data-lyrics></canvas>
+        <canvas class="dots status amber" id="status"></canvas>
+      </div>
+    </div>
+    <div class="ft">
+      <img class="cover" data-src="track.cover" alt="">
+      <div class="who">
+        <canvas class="dots title amber" id="title"></canvas>
+        <div class="a"><span data-bind="track.artist"></span><i>·</i><span data-bind="track.album"></span></div>
+      </div>
+      <div class="tag">Side<canvas class="dots white module" id="side"></canvas></div>
+    </div>
+  </div>
+  <div class="sw-grain" data-show="params.grain"></div>
+
+  <script>
+    const DRUM = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,'-?!&:/";
+    const rowsEl = document.getElementById("rows");
+    const $ = (id) => document.getElementById(id);
+    let grid = null, cells = [], shown = [], lastText = null, flipping = [];
+
+    // Size the flaps so a whole number of them fills the width.
+    function buildGrid(ctx) {
+      const W = innerWidth, H = innerHeight, aspect = W / H;
+      const cols = aspect >= 2.2 ? 32 : aspect >= 1.3 ? 22 : aspect >= 0.9 ? 18 : 13;
+      const rows = Math.max(2, Math.min(8, (+ctx.params.rows || 4) + (aspect < 1 ? 2 : 0)));
+      const key = cols + "x" + rows + "@" + W + "x" + H;
+      if (grid === key) return;
+      grid = key;
+      const pad = W * (aspect < 1 ? 0.06 : 0.05);
+      const pitch = (W - pad * 2) / cols, gap = pitch * 0.085, cw = pitch - gap;
+      let ch = cw * 1.38;
+      // keep the board inside the screen on short, wide displays
+      const room = H * (aspect < 1 ? 0.5 : 0.5);
+      ch = Math.min(ch, room / (rows * 1.12));
+      const s = document.documentElement.style;
+      s.setProperty("--pad", pad + "px"); s.setProperty("--cw", cw + "px"); s.setProperty("--ch", ch + "px"); s.setProperty("--gap", gap + "px");
+      // narrower flaps when height limits them, centered
+      rowsEl.style.justifyContent = "center";
+      rowsEl.innerHTML = "";
+      cells = []; shown = [];
+      for (let r = 0; r < rows; r++) {
+        const row = document.createElement("div");
+        row.className = "row";
+        for (let c = 0; c < cols; c++) {
+          const f = document.createElement("div");
+          f.className = "flap blank";
+          f.innerHTML = '<div class="h t"><b> </b></div><div class="h b"><b> </b></div><div class="leaf"><div class="h t"><b> </b></div><div class="h b"><b> </b></div></div>';
+          row.appendChild(f);
+          cells.push(f); shown.push(" ");
+        }
+        rowsEl.appendChild(row);
+      }
+      if (cw / ch > 0.9) rowsEl.querySelectorAll(".row").forEach((r) => (r.style.justifyContent = "center"));
+      gridCols = cols; gridRows = rows;
+      lastText = null;
+    }
+    let gridCols = 22, gridRows = 4;
+
+    // Word-wrap into the board, upper-case; a word too long for a row is split.
+    function layoutText(text) {
+      const cols = gridCols, rows = gridRows;
+      const out = [];
+      for (const para of String(text).split("\n")) {
+      const words = DotMatrix.norm(para).trim().split(" ").filter(Boolean);
+      let cur = "";
+      for (let w of words) {
+        while (w.length > cols) { if (cur) { out.push(cur); cur = ""; } out.push(w.slice(0, cols)); w = w.slice(cols); }
+        if (!cur) cur = w;
+        else if (cur.length + 1 + w.length <= cols) cur += " " + w;
+        else { out.push(cur); cur = w; }
+      }
+      if (cur) out.push(cur);
+      }
+      if (out.length > rows) { out.length = rows; out[rows - 1] = (out[rows - 1].slice(0, cols - 3) + "...").slice(0, cols); }
+      const top = Math.floor((rows - out.length) / 2);
+      const chars = new Array(rows * cols).fill(" ");
+      out.forEach((line, k) => { for (let c = 0; c < line.length; c++) chars[(top + k) * cols + c] = line[c]; });
+      return chars;
+    }
+
+    function setFace(f, ch) {
+      const bs = f.querySelectorAll(":scope > .h b");
+      bs[0].textContent = ch; bs[1].textContent = ch;
+      f.classList.toggle("blank", ch === " ");
+    }
+
+    // The drum each flap turns through, from what it shows to the target (shortened for long trips, as if mid-turn).
+    function path(from, to, most) {
+      const a = DRUM.indexOf(from), b = DRUM.indexOf(to);
+      if (b < 0 || a < 0) return [to];
+      const seq = [];
+      for (let k = (a + 1) % DRUM.length; ; k = (k + 1) % DRUM.length) { seq.push(DRUM[k]); if (k === b) break; }
+      return seq.length > most ? seq.slice(seq.length - most) : seq;
+    }
+
+    const SPEED = { fast: 42, normal: 62, slow: 95 };
+    function show(text, ctx, animate) {
+      const chars = layoutText(text);
+      flipping.forEach((t) => clearTimeout(t));
+      flipping = [];
+      const step = SPEED[ctx.params.speed] || 62;
+      cells.forEach((f, i) => {
+        const target = chars[i];
+        const leaf = f.querySelector(".leaf");
+        if (!animate) { leaf.style.visibility = "hidden"; setFace(f, target); shown[i] = target; return; }
+        if (shown[i] === target) return;
+        const col = i % gridCols, row = Math.floor(i / gridCols);
+        const seq = path(shown[i], target, 4 + ((i * 7) % 7));
+        let k = 0;
+        const flip = () => {
+          const from = shown[i], to = seq[k++];
+          const lb = leaf.querySelectorAll("b"), st = f.querySelectorAll(":scope > .h b");
+          st[0].textContent = to;            // the new top is already under the falling leaf
+          st[1].textContent = from;          // the old bottom stays until the leaf lands
+          lb[0].textContent = from; lb[1].textContent = to;
+          f.classList.remove("blank");
+          leaf.style.visibility = "visible";
+          const a = leaf.animate([{ transform: "rotateX(0deg)" }, { transform: "rotateX(-180deg)" }], { duration: step * 0.95, easing: "cubic-bezier(.55,0,.75,.6)" });
+          a.onfinish = () => {
+            st[1].textContent = to;
+            leaf.style.visibility = "hidden";
+            shown[i] = to;
+            if (k < seq.length) flipping.push(setTimeout(flip, step * 0.08));
+            else setFace(f, to);
+          };
+        };
+        flipping.push(setTimeout(flip, col * step * 0.3 + row * step * 1.4));
+      });
+    }
+
+    function boardText(ctx) {
+      const L = ctx.lyrics;
+      if (ctx.focus || !L.hasLyrics || L.index < 0) return ctx.track.title + (ctx.track.artist ? "\n" + ctx.track.artist : "");
+      if (L.isInstrumental) return "~ instrumental ~";
+      return L.current;
+    }
+
+    // ---------- the dot-matrix bits ----------
+    function pitchFor(canvas, text, rows = 7, minP = 2) {
+      const H = canvas.clientHeight, W = canvas.clientWidth;
+      const p = H / (rows + 1);
+      return Math.max(minP, Math.min(p, W / (DotMatrix.measure(text) + 1)));
+    }
+    const amber = (ctx) => ctx.params.amber || "#FFB21A";
+    const offDot = (ctx, k = 0.09) => "rgba(255,255,255," + k + ")";
+    let clockText = "";
+    function drawClock(ctx) {
+      const t = ctx.params.clock24 === false ? ctx.time.clock.replace(/\s?[AP]M$/i, "") : ctx.time.clock24;
+      if (t === clockText) return;
+      clockText = t;
+      const c = $("clock");
+      DotMatrix.draw(c, t, { pitch: c.clientHeight / 9, color: "#f2f0e9", off: offDot(ctx, 0.06), align: "center" });
+    }
+
+    function drawAll(ctx) {
+      const np = $("np");
+      DotMatrix.draw(np, "Now playing", { pitch: np.clientHeight / 8, color: amber(ctx) });
+      clockText = ""; drawClock(ctx);
+
+      const title = $("title"), tp = Math.min(title.clientHeight / 8, 1e9);
+      const tLine = DotMatrix.wrap(ctx.track.title || "", Math.floor(title.clientWidth / tp) - 1, 1)[0] || "";
+      DotMatrix.draw(title, tLine, { pitch: tp, color: amber(ctx) });
+
+      const L = ctx.lyrics, side = $("side");
+      const tag = (ctx.track.progress < 0.5 ? "A" : "B") + (L.index >= 0 ? L.index + 1 : "");
+      DotMatrix.draw(side, tag, { pitch: side.clientHeight / 9, color: "#f2f0e9", off: offDot(ctx, 0.06), align: "center" });
+
+      // the next line that's sung (skipping instrumental gaps)
+      let nextText = "";
+      for (let k = Math.max(0, L.index + 1); k < L.lines.length && !nextText; k++) nextText = L.lines[k].text.trim();
+      const next = $("next");
+      const np2 = next.clientHeight / 8;
+      DotMatrix.draw(next, DotMatrix.wrap(nextText, Math.floor(next.clientWidth / np2) - 1, 1)[0] || "", { pitch: np2, color: amber(ctx) });
+      const st = $("status");
+      DotMatrix.draw(st, ctx.track.isPlaying === false ? "Delayed" : "On time", { pitch: st.clientHeight / 8, color: ctx.track.isPlaying === false ? "#ff5a3c" : amber(ctx), align: "right" });
+
+      // the line's badge: its number, in a colour from the cover with ink that reads on it
+      const badge = $("badge");
+      badge.textContent = L.index >= 0 ? String(L.index + 1).padStart(2, "0") : "--";
+      const hex = (ctx.params.lineColor || "#888").replace("#", ""), n = parseInt(hex.length === 3 ? hex.replace(/./g, "$&$&") : hex, 16);
+      const lum = (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+      badge.style.setProperty("--badgeInk", lum > 0.6 ? "#111" : "#fff");
+    }
+
+    let shownFor = null;
+    Wallpaper.on("render", (ctx) => {
+      buildGrid(ctx);
+      $("nextRow").style.visibility = ctx.params.showNext === false || !ctx.lyrics.hasLyrics ? "hidden" : "";
+    });
+    Wallpaper.on("layout", (ctx) => {
+      const text = boardText(ctx);
+      const key = grid + "|" + text;
+      if (key !== shownFor) {
+        // animate only on the live layer, and only when something was already on the board
+        show(text, ctx, Wallpaper.live && shownFor !== null && !matchMedia("(prefers-reduced-motion: reduce)").matches);
+        shownFor = key;
+      }
+      drawAll(ctx);
+    });
+    Wallpaper.on("tick", (ctx) => drawClock(ctx));
+    // covered mid-flip: land every flap on its letter rather than leave it half turned
+    Wallpaper.on("pause", () => { if (flipping.length && Wallpaper.ctx) show(boardText(Wallpaper.ctx), Wallpaper.ctx, false); });
+    addEventListener("resize", () => { grid = null; shownFor = null; Wallpaper.refresh(); });
+  </script>
+</body>
+</html>

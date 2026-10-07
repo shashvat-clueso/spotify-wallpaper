@@ -1,0 +1,190 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  /* One frame is --fw × --fh of picture plus a --b band of perforations on each side; frames sit --pitch apart. The
+     strip runs across the screen (or down it, on a portrait screen) and moves one --pitch per lyric line. */
+  :root { --fw: 560px; --fh: 374px; --b: 80px; --pitch: 600px; }
+  body { background: #0a0908; color: #f2ede4; }
+  .room { position: absolute; inset: 0; background: radial-gradient(ellipse 80% 70% at 50% 45%, #1a1714, #0a0908 70%); }
+  .sw-grain { opacity: 0.12; }
+
+  .track { position: absolute; left: 0; right: 0; top: var(--top, 18vh); height: calc(var(--fh) + var(--b) * 2); }
+  .strip { position: absolute; left: 0; top: 0; height: 100%; width: 0; }
+  .sw-live .strip { transition: transform 1.3s cubic-bezier(0.55, 0, 0.2, 1); }
+  .fr { position: absolute; top: 0; width: var(--pitch); height: 100%; background: var(--param-base);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 12%, transparent 88%, rgba(255, 255, 255, 0.04)); }
+  .pic { position: absolute; left: calc((var(--pitch) - var(--fw)) / 2); top: var(--b); width: var(--fw); height: var(--fh); border-radius: calc(var(--fh) * 0.018);
+    background-color: #000; background-image: var(--cover-url); background-repeat: no-repeat; overflow: hidden; }
+  .pic::after { content: ""; position: absolute; inset: 0; background: #000; opacity: 0.5; }
+  .sw-live .pic::after { transition: opacity 1.1s ease; }
+  .fr.cur .pic::after { opacity: 0; }
+  .fr.near .pic::after { opacity: 0.38; }
+  /* the leader before the first frame: clear base, no picture */
+  .pic.leader { background: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05); display: grid; place-items: center; }
+  .pic.leader::after { display: none; }
+  .pic.leader span { font: 600 calc(var(--b) * 0.16) / 1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.3em; text-transform: uppercase; color: var(--param-edge); opacity: 0.55; }
+  .band { position: absolute; left: 0; right: 0; height: var(--b); }
+  .band.t { top: 0; }
+  .band.btm { bottom: 0; }
+  .perfs { position: absolute; left: 0; right: 0; top: 30%; height: 40%; display: flex; justify-content: space-around; }
+  .band.btm .perfs { top: 30%; }
+  .perfs i { width: calc(var(--pitch) / 8 * 0.5); height: 100%; border-radius: calc(var(--b) * 0.07); background: #0a0908;
+    box-shadow: inset 0 calc(var(--b) * 0.02) calc(var(--b) * 0.03) rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.03); }
+  .code { position: absolute; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 calc(var(--pitch) * 0.05);
+    font: 600 calc(var(--b) * 0.15) / 1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.16em; color: var(--param-edge); white-space: nowrap;
+    text-shadow: 0 0 calc(var(--b) * 0.06) color-mix(in srgb, var(--param-edge) 60%, transparent); opacity: 0.9; }
+  .band.t .code { top: 8%; }
+  .band.btm .code { bottom: 8%; }
+
+  /* ---------- text ---------- */
+  .mono { font: 500 max(11px, 1.15vmin) / 1.5 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.18em; text-transform: uppercase; color: #8a857e; }
+  .reel { position: absolute; left: 5vmin; top: 4.6vmin; max-width: 44vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .reel b { color: #d8d2c8; font-weight: 500; }
+  .tc { position: absolute; right: 5vmin; top: 4.6vmin; text-align: right; }
+  .tc b { color: #d8d2c8; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .tc .rec { display: inline-block; width: 0.9vmin; height: 0.9vmin; border-radius: 50%; background: #e0412d; margin-right: 1vmin; vertical-align: 0.05vmin; }
+  .sw-live.is-playing .tc .rec { animation: blink 1s steps(2, jump-none) infinite; }
+  @keyframes blink { 50% { opacity: 0.2; } }
+
+  .sub { position: absolute; left: 8vw; right: 8vw; bottom: var(--subBottom, 7vh); text-align: center; color: var(--param-subtitle);
+    font-family: var(--param-subtitleFont); font-weight: 500; font-size: var(--param-subtitleSize); line-height: 1.22; letter-spacing: 0.005em;
+    text-shadow: 0 0 0.12em #000, 0 0 0.12em #000, 0.04em 0.05em 0 #000, -0.03em 0.03em 0 #000, 0.03em -0.03em 0 #000; text-wrap: balance; }
+  .sub .tr { display: block; font-style: italic; font-size: 0.78em; opacity: 0.92; margin-top: 0.15em; }
+  /* subtitles cut, they never fade */
+  .sw-live .sub { transition: none; }
+  .credit { position: absolute; left: 5vmin; bottom: 4.6vmin; }
+  .credit2 { position: absolute; right: 5vmin; bottom: 4.6vmin; text-align: right; }
+
+  /* portrait: cine film, running down the screen */
+  .vert .track { left: var(--left, 10vw); right: auto; top: 0; bottom: 0; width: calc(var(--fw) + var(--b) * 2); height: auto;
+    -webkit-mask: linear-gradient(transparent 2%, #000 13%, #000 70%, transparent 84%); mask: linear-gradient(transparent 2%, #000 13%, #000 70%, transparent 84%); }
+  .vert .strip { top: 0; left: 0; width: 100%; height: 0; }
+  .vert .fr { left: 0; top: auto; width: 100%; height: var(--pitch);
+    background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.05), transparent 12%, transparent 88%, rgba(255, 255, 255, 0.04)); }
+  .vert .pic { left: var(--b); top: calc((var(--pitch) - var(--fh)) / 2); }
+  .vert .band { top: 0; bottom: 0; width: var(--b); height: auto; }
+  .vert .band.t { left: 0; right: auto; }
+  .vert .band.btm { right: 0; left: auto; }
+  .vert .perfs { left: 30%; right: auto; width: 40%; top: 0; height: 100%; flex-direction: column; }
+  .vert .perfs i { width: 100%; height: calc(var(--pitch) / 8 * 0.5); }
+  .vert .code { writing-mode: vertical-rl; top: 0; bottom: 0; flex-direction: row; padding: calc(var(--pitch) * 0.05) 0; height: 100%; }
+  .vert .band.t .code { left: 8%; right: auto; top: 0; }
+  .vert .band.btm .code { right: 8%; left: auto; bottom: 0; }
+  .vert .sub { left: 6vw; right: 6vw; }
+</style>
+</head>
+<body>
+  <div class="room"></div>
+  <div class="track"><div class="strip" id="strip"></div></div>
+  <div class="reel mono">Reel <b id="reelNo">1</b> · <b data-bind="track.title"></b></div>
+  <div class="tc mono"><span class="rec"></span><b id="tc">00:00:00:00</b></div>
+  <div class="sub" id="sub" data-lyrics></div>
+  <div class="credit mono" data-bind="track.artist"></div>
+  <div class="credit2 mono" data-bind="track.album"></div>
+  <div class="sw-grain" data-show="params.grain"></div>
+
+  <script>
+    const strip = document.getElementById("strip"), $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    let vert = false, sizes = null, frames = new Map(), trackID = null;
+
+    function measure() {
+      const W = innerWidth, H = innerHeight;
+      vert = W / H < 0.95;
+      document.documentElement.classList.toggle("vert", vert);
+      const s = document.documentElement.style;
+      let fh, fw, b, pitch;
+      if (vert) {
+        fw = Math.min(W * 0.56, H * 0.4); fh = fw / 1.5; b = fw * 0.16; pitch = fh + fw * 0.06;
+        s.setProperty("--left", (W - fw - b * 2) / 2 + "px");
+        s.setProperty("--subBottom", "6vh");
+      } else {
+        fh = Math.min(H * 0.42, W * 0.25); fw = fh * 1.5; b = fh * 0.24; pitch = fw + fh * 0.09;
+        const stripH = fh + b * 2;
+        s.setProperty("--top", Math.max(H * 0.12, (H - stripH) / 2 - H * 0.06) + "px");
+        s.setProperty("--subBottom", Math.max(H * 0.06, (H - ((H - stripH) / 2 - H * 0.06 + stripH)) * 0.38) + "px");
+      }
+      s.setProperty("--fw", fw + "px"); s.setProperty("--fh", fh + "px"); s.setProperty("--b", b + "px"); s.setProperty("--pitch", pitch + "px");
+      sizes = { W, H, fw, fh, b, pitch };
+    }
+
+    // a stable pseudo-random crop for frame k of this song
+    function crop(id, k) {
+      let h = 2166136261;
+      const str = id + "#" + k;
+      for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+      const r = (n) => (((h >>> (n * 5)) % 1000) / 1000);
+      if (k === 0) return { size: "cover", pos: "50% 50%" };
+      const zoom = 120 + Math.round(r(0) * 110);
+      return { size: zoom + "%", pos: Math.round(r(1) * 100) + "% " + Math.round(r(2) * 100) + "%" };
+    }
+
+    function frameEl(ctx, k) {
+      const fr = document.createElement("div");
+      fr.className = "fr";
+      const c = crop(ctx.track.id, k), n = 20 + k;
+      const holes = "<i></i>".repeat(8);
+      fr.innerHTML = `<div class="band t"><div class="code"><span>▸ ${n}</span><span>SAFETY FILM 5063</span><span>${n}A</span></div><div class="perfs">${holes}</div></div>
+        ${k < 0 ? `<div class="pic leader"><span>${k === -1 ? "Reel 1 · Head" : "◂ ◂ ◂"}</span></div>` : `<div class="pic" style="background-size:${c.size};background-position:${c.pos}"></div>`}
+        <div class="band btm"><div class="perfs">${holes}</div><div class="code"><span>${n}</span><span>◂ ${k < 0 ? "HEAD" : String(k).padStart(3, "0")}</span><span>${n}A ▸</span></div></div>`;
+      fr.style[vert ? "top" : "left"] = k * sizes.pitch + "px";
+      return fr;
+    }
+
+    // Which frame the song is on: one per lyric line (frame 0 is the intro), or one every 12 s without lyrics.
+    function frameIndex(ctx) {
+      const L = ctx.lyrics;
+      if (L.hasLyrics) return L.index + 1;
+      return Math.floor((ctx.track.position || 0) / 12);
+    }
+
+    function update(ctx) {
+      const key = ctx.track.id + "|" + sizes.W + "x" + sizes.H;
+      if (key !== trackID) {
+        trackID = key;
+        strip.innerHTML = "";
+        frames = new Map();
+        strip.style.transition = "none";
+      }
+      const i = frameIndex(ctx);
+      const span = Math.ceil((vert ? sizes.H : sizes.W) / sizes.pitch / 2) + 2;
+      // keep only the frames near the gate (plus one either side for the move)
+      for (const [k, el] of frames) if (k < i - span - 1 || k > i + span + 1) { el.remove(); frames.delete(k); }
+      for (let k = i - span; k <= i + span; k++) if (!frames.has(k)) { const el = frameEl(ctx, k); frames.set(k, el); strip.appendChild(el); }
+      for (const [k, el] of frames) { el.classList.toggle("cur", k === i); el.classList.toggle("near", Math.abs(k - i) === 1); }
+      const center = (vert ? sizes.H * 0.42 : sizes.W / 2) - sizes.pitch / 2;
+      strip.style.transform = vert ? `translateY(${center - i * sizes.pitch}px)` : `translateX(${center - i * sizes.pitch}px)`;
+      if (strip.style.transition === "none") { void strip.offsetWidth; strip.style.transition = ""; }
+    }
+
+    function subtitle(ctx) {
+      const L = ctx.lyrics, sub = $("sub");
+      const text = L.index >= 0 ? (L.isInstrumental ? "♪" : L.current) : "";
+      const tr = ctx.params.translations !== false && L.translation ? `<span class="tr">${esc(L.translation)}</span>` : "";
+      const html = text ? esc(text) + tr : "";
+      if (sub.innerHTML !== html) sub.innerHTML = html;
+    }
+
+    function timecode(ctx) {
+      const s = Math.floor(ctx.track.position || 0), f = Math.floor(((ctx.track.position || 0) % 1) * 24);
+      const p = (n) => String(n).padStart(2, "0");
+      const t = `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}:${p(f)}`;
+      if ($("tc").textContent !== t) $("tc").textContent = t;
+    }
+
+    Wallpaper.on("render", (ctx) => {
+      if (!sizes || sizes.W !== innerWidth || sizes.H !== innerHeight) measure();
+      update(ctx);
+      subtitle(ctx);
+      timecode(ctx);
+      $("reelNo").textContent = ctx.track.progress < 0.5 ? "1" : "2";
+    });
+    Wallpaper.on("tick", timecode);
+    addEventListener("resize", () => { sizes = null; Wallpaper.refresh(); });
+  </script>
+</body>
+</html>

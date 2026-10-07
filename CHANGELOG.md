@@ -8,6 +8,13 @@ All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](
 - **Three new templates:** **Cassette** (a mixtape whose reels wind through the song, with the current line handwritten
   on the label), **Liner Notes** (the CD booklet, with the whole song typeset beside the cover) and **Weather & Time**
   (a sky that follows the time of day and your local weather, with rain running down the glass).
+- **Eight more templates:** **Departure Board** (split-flap lyrics under a dot-matrix title), **Riso Print** (the
+  cover as two-ink halftone that slips out of register each line), **Swiss Grid** (the lyric set huge on a
+  twelve-column grid, words rising one by one), **Hardware Panel** (the cover behind a speaker grille, the lyric on an
+  OLED, knobs that turn with the song and a grille that thumps on the beat), **Film Strip** (the cover as 35 mm
+  frames advancing a frame per line, under a yellow subtitle), **Albers** (the cover's four strongest colours as
+  nested squares that trade places each line), **Breathing Type** (the line's key word swelling with the beat in SF
+  Pro's variable width) and **Receipt** (the song printing on a thermal slip, with a total and barcode at the end).
 - **Painted Cover comes alive:** the most striking word of each lyric line is lettered into the painting in brush
   strokes, then painted over; before a new cover goes on, the last painting replays as a ~4-second timelapse; fresh
   paint looks wet and dries to matte; a new "Match the genre" stroke style (rock in heavy impasto and knife,

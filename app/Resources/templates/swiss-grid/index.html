@@ -1,0 +1,183 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  /* A twelve-column grid with 3.6vw margins. Column n starts at calc(var(--m) + (n - 1) * var(--col)). */
+  :root { --m: 3.6vw; --col: calc((100vw - var(--m) * 2) / 12); --accent: var(--param-accent); --base: 9vw; --disc: min(40vw, 70vh); }
+  body { background: var(--param-paper); color: var(--param-ink); font-family: var(--param-font); }
+  .grid { position: absolute; inset: 0 var(--m); pointer-events: none;
+    background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--param-ink) 7%, transparent) 0 1px, transparent 1px var(--col)); }
+  .grid::after { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--param-ink) 7%, transparent); }
+  html:not(.param-gridlines) .grid { display: none; }
+
+  .disc { position: absolute; width: var(--disc); aspect-ratio: 1; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06); right: calc(var(--disc) * -0.18); top: calc(var(--disc) * -0.32); border-radius: 50%;
+    background: var(--cover-url) center / cover, var(--param-ink); }
+  .disc.square { border-radius: 0; }
+  .disc.none { display: none; }
+
+  .mono { font: 500 max(11px, 0.95vw) / 1.45 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.06em; text-transform: uppercase; }
+  .side { position: absolute; left: var(--m); top: 4vw; bottom: var(--base); width: calc(var(--col) * 2 - 1.2vw); display: flex; flex-direction: column; justify-content: space-between; }
+  .side div > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .side .pos { color: var(--accent); }
+  .side .pos b { font-weight: 500; }
+  .side .bottom { padding-bottom: 0.1vw; }
+
+  .vt { position: absolute; left: calc(var(--m) + var(--col) * 2 - 1.1vw); bottom: calc(var(--base) + 0.4vw); transform-origin: left bottom; transform: rotate(-90deg);
+    white-space: nowrap; font-weight: 700; font-size: 1.9vw; letter-spacing: -0.015em; line-height: 1; max-width: calc(100vh - var(--base) - 6vw); overflow: hidden; text-overflow: ellipsis; }
+
+  .words { position: absolute; left: calc(var(--m) + var(--col) * 2); right: calc(var(--m) + var(--col) * 0.5); bottom: calc(var(--base) + 0.2vw);
+    font-weight: 700; line-height: 0.94; letter-spacing: -0.035em; font-size: 6vw; text-wrap: balance; }
+  .words.lower { text-transform: lowercase; }
+  .words.upper { text-transform: uppercase; letter-spacing: -0.02em; line-height: 0.9; }
+  .words span { display: inline-block; overflow: hidden; vertical-align: bottom; padding: 0.02em 0.06em 0.08em 0; margin: -0.02em 0.22em -0.08em 0; }
+  .words i { font-style: normal; display: inline-block; }
+  .words .hot { color: var(--accent); }
+  .words.quiet { color: color-mix(in srgb, var(--param-ink) 32%, var(--param-paper)); }
+  .sw-live .words i { animation: rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  @keyframes rise { from { transform: translateY(108%); } to { transform: none; } }
+
+  .bar { position: absolute; left: calc(var(--m) + var(--col) * 2); right: calc(var(--m) + var(--col) * 0.5); bottom: calc(var(--base) - 3.6vw); height: max(3px, 0.32vw);
+    background: color-mix(in srgb, var(--param-ink) 12%, transparent); color: var(--accent); border-radius: 0; }
+  .bar .fill { border-radius: 0; }
+  .ticks { position: absolute; left: calc(var(--m) + var(--col) * 2); right: calc(var(--m) + var(--col) * 0.5); bottom: calc(var(--base) - 5.4vw);
+    display: flex; justify-content: space-between; }
+
+  /* portrait: six columns, the words take the full measure */
+  @media (max-aspect-ratio: 1/1) {
+    :root { --m: 6vw; --col: calc((100vw - var(--m) * 2) / 6); --base: 16vw; --disc: 92vw; }
+    .mono { font-size: max(11px, 2vw); }
+    .side { top: 7vw; width: calc(var(--col) * 3); bottom: auto; gap: 3vw; }
+    .side .bottom { display: none; }
+    .vt { display: none; }
+    .words, .bar, .ticks { left: var(--m); right: var(--m); }
+    .bar { bottom: calc(var(--base) - 6vw); height: 0.6vw; }
+    .ticks { bottom: calc(var(--base) - 10vw); }
+  }
+  /* ultrawide: the words keep to the left eight columns */
+  .ultrawide .words { right: calc(var(--m) + var(--col) * 3); }
+</style>
+</head>
+<body>
+  <div class="grid"></div>
+  <div class="disc" id="disc"></div>
+  <div class="side mono">
+    <div>
+      <span class="pos" id="pos"></span>
+      <span data-bind="track.artist"></span>
+      <span data-bind="track.album"></span>
+      <span data-bind="track.genre"></span>
+    </div>
+    <div class="bottom"><span id="sideTag"></span><span><span data-bind="track.elapsed"></span> / <span data-bind="track.length"></span></span></div>
+  </div>
+  <div class="vt" data-bind="track.title"></div>
+  <div class="words" id="words"></div>
+  <progress-bar class="bar"></progress-bar>
+  <div class="ticks mono"><span>0:00</span><span data-bind="time.clock"></span><span data-bind="track.length"></span></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+    // ---------- colour: keep the accent legible on the paper ----------
+    const rgb = (h) => { h = String(h || "#888").replace("#", ""); if (h.length === 3) h = h.replace(/./g, "$&$&"); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+    const lum = ([r, g, b]) => { const f = (v) => (v /= 255) <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+    const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const toHex = (c) => "#" + c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join("");
+    const toHsl = ([r, g, b]) => {
+      r /= 255; g /= 255; b /= 255;
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+      if (!d) return [0, 0, l];
+      const s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      const h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      return [h / 6, s, l];
+    };
+    const fromHsl = ([h, s, l]) => {
+      const f = (n) => { const k = (n + h * 12) % 12, a = s * Math.min(l, 1 - l); return 255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))); };
+      return [f(0), f(8), f(4)];
+    };
+    // Darken (or lighten) along the hue, keeping the colour rich, until it reads on the paper.
+    function legible(accent, paper, want = 3.2) {
+      const p = rgb(paper), dark = lum(p) > 0.4;
+      let [h, s, l] = toHsl(rgb(accent));
+      if (s > 0.08) s = Math.max(s, 0.55);
+      let c = fromHsl([h, s, l]);
+      for (let k = 0; k < 40 && contrast(c, p) < want; k++) { l += dark ? -0.02 : 0.02; c = fromHsl([h, s, Math.max(0, Math.min(1, l))]); }
+      return toHex(c);
+    }
+
+    // the line's key word: the longest, ignoring punctuation
+    const bare = (w) => w.replace(/[^\p{L}\p{N}']/gu, "");
+    function hotIndex(words) {
+      let best = -1, len = 0;
+      words.forEach((w, k) => { const n = bare(w).length; if (n > len) { len = n; best = k; } });
+      return best;
+    }
+
+    let shown = null;
+    function setWords(ctx) {
+      const L = ctx.lyrics;
+      let text, quiet = false;
+      if (ctx.focus || !L.hasLyrics) text = ctx.track.title;
+      else if (L.index < 0 || L.isInstrumental) { text = ctx.track.title; quiet = true; }
+      else text = L.current;
+      const key = ctx.track.id + "|" + L.index + "|" + text + "|" + quiet;
+      if (key === shown) return false;
+      shown = key;
+      const words = String(text || "").trim().split(/\s+/).filter(Boolean);
+      const hot = quiet ? -1 : hotIndex(words);
+      const el = $("words");
+      el.classList.toggle("quiet", quiet);
+      el.innerHTML = words.map((w, k) => `<span class="${k === hot ? "hot" : ""}"><i style="animation-delay:${k * 70}ms">${esc(w)}</i></span>`).join("");
+      return true;
+    }
+
+    // The largest size, up to the setting, at which the line fits between the disc and the base line.
+    function fit(ctx) {
+      const el = $("words"), W = innerWidth, H = innerHeight;
+      const portrait = W < H;
+      const disc = $("disc"), dr = disc.getBoundingClientRect();
+      const bottom = el.getBoundingClientRect().bottom;
+      const er = el.getBoundingClientRect();
+      // the disc only limits the words when they'd run under it
+      const clear = ctx.params.disc === "none" || er.right < dr.left - W * 0.01;
+      const top = clear ? H * 0.16 : Math.max(H * 0.1, dr.bottom + H * 0.05);
+      const room = Math.max(H * 0.2, bottom - top);
+      let hi = (parseFloat(ctx.params.maxSize) || 7.2) * W / 100 * (portrait ? 1.7 : 1), lo = W * 0.012;
+      for (let n = 0; n < 14; n++) {
+        const mid = (lo + hi) / 2;
+        el.style.fontSize = mid + "px";
+        const fits = el.scrollHeight <= room && [...el.querySelectorAll("span")].every((s) => s.offsetWidth <= el.clientWidth + 1);
+        if (fits) lo = mid; else hi = mid;
+      }
+      el.style.fontSize = lo + "px";
+    }
+
+    // Following the cover, take its most colourful swatch; a black-and-white cover gets the Swiss red.
+    function pickAccent(ctx) {
+      const a = ctx.params.accent;
+      if (!a || !ctx.colors.vibrant || String(a).toUpperCase() !== String(ctx.colors.vibrant).toUpperCase()) return a;
+      const chroma = (h) => { const c = rgb(h); return Math.max(...c) - Math.min(...c); };
+      const best = [a, ...(ctx.colors.palette || [])].sort((x, y) => chroma(y) - chroma(x))[0];
+      return chroma(best) < 40 ? "#E5322D" : best;
+    }
+
+    Wallpaper.on("render", (ctx) => {
+      const s = document.documentElement.style;
+      s.setProperty("--accent", legible(pickAccent(ctx), ctx.params.paper || "#EFEFEA"));
+      $("disc").className = "disc " + (ctx.params.disc || "disc");
+      $("words").classList.toggle("lower", ctx.params.case === "lower" || !ctx.params.case);
+      $("words").classList.toggle("upper", ctx.params.case === "upper");
+      const L = ctx.lyrics, sung = L.lines.filter((l) => l.text.trim()).length;
+      const at = L.lines.slice(0, L.index + 1).filter((l) => l.text.trim()).length;
+      $("pos").innerHTML = L.hasLyrics ? `<b>${String(at).padStart(2, "0")}</b> / ${String(sung).padStart(2, "0")}` : "—";
+      $("sideTag").textContent = "Side " + (ctx.track.progress < 0.5 ? "A" : "B");
+      setWords(ctx);
+    });
+    Wallpaper.on("layout", fit);
+    addEventListener("resize", () => Wallpaper.refresh());
+  </script>
+</body>
+</html>

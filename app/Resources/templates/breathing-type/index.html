@@ -1,0 +1,155 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  /* SF Pro's variable width axis (the system's own font, served by the app, so it works offline) does the breathing:
+     font-stretch runs from 30% to 150%. --s is the size of the small words; the key word is --k times that. */
+  :root { --s: 4vw; --k: 2.6; --hero: var(--param-hero); --period: 0.83s; }
+  body { background: var(--param-background); color: var(--param-text); font-family: "SF Var", -apple-system, "Helvetica Neue", sans-serif; }
+  .bg { position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 80% 110% at 82% 12%, color-mix(in oklab, var(--param-glow) 85%, transparent), transparent 70%),
+      radial-gradient(ellipse 60% 70% at 10% 100%, color-mix(in oklab, var(--hero) 16%, transparent), transparent 70%),
+      var(--param-background); }
+  .sw-grain { opacity: 0.1; }
+
+  .stage { position: absolute; left: 5.5vw; right: 5.5vw; top: 6vh; bottom: 13vh; display: flex; align-items: center; }
+  .ln { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: calc(var(--s) * 0.42); row-gap: 0; line-height: 0.92; width: 100%; }
+  .w { font-size: var(--s); font-weight: 300; font-stretch: 78%; opacity: 0.6; letter-spacing: -0.005em; white-space: nowrap; }
+  /* the key word keeps a box as wide as its widest breath, so nothing around it moves */
+  .hb { display: inline-block; text-align: left; white-space: nowrap; }
+  .hero { display: inline-block; font-size: calc(var(--s) * var(--k)); font-weight: var(--param-weight); font-stretch: 100%; color: var(--hero);
+    letter-spacing: -0.015em; line-height: 0.86; }
+  .ln.quiet .hero { color: var(--param-text); opacity: 0.85; }
+
+  .ft { position: absolute; left: 5.5vw; right: 5.5vw; bottom: 5vh; display: flex; justify-content: space-between; align-items: center; gap: 4vw;
+    font: 500 max(11px, 1.1vw) / 1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.14em; text-transform: uppercase;
+    color: color-mix(in oklab, var(--param-text) 55%, var(--param-background)); white-space: nowrap; }
+  .ft .r { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .pulse { display: inline-block; width: 0.8em; height: 0.8em; border-radius: 50%; background: var(--hero); margin-right: 0.9em; vertical-align: -0.05em;
+    transform: scale(calc(0.8 + var(--beat) * 0.7)); }
+  .sw-live:not(.beating) .pulse { animation: pulse var(--period) ease-in-out infinite alternate; }
+  .sw-live:not(.is-playing) .pulse { animation-play-state: paused; }
+  @keyframes pulse { from { transform: scale(0.65); opacity: 0.6; } to { transform: scale(1.15); opacity: 1; } }
+
+  @media (max-aspect-ratio: 1/1) {
+    .stage { left: 7vw; right: 7vw; top: 8vh; bottom: 12vh; }
+    .ft { left: 7vw; right: 7vw; font-size: max(11px, 2.2vw); }
+    .ft .r { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="stage" data-lyrics-host><div class="ln" id="ln"></div></div>
+  <div class="ft"><span><i class="pulse"></i><span id="tempo"></span></span><span class="r" data-template="{{track.title}} · {{track.artist}}"></span></div>
+  <div class="sw-grain" data-show="params.grain"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id), root = document.documentElement;
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const STOP = new Set("the a an and or but of to in on at for with from by as is are was were be been it its it's i i'm me my you you're your we us our they them their he she his her this that these those so if then than just not no do don't".split(" "));
+    const bare = (w) => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
+
+    // colours: keep the key word bright enough on the background
+    const rgb = (h) => { h = String(h || "#888").replace("#", ""); if (h.length === 3) h = h.replace(/./g, "$&$&"); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+    const lin = (v) => (v /= 255) <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    const lum = (c) => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
+    const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    function legible(fg, bg, want = 4) {
+      let c = rgb(fg); const b = rgb(bg), to = lum(b) < 0.35 ? 255 : 0;
+      for (let k = 0; k < 24 && contrast(c, b) < want; k++) c = c.map((v) => v + (to - v) * 0.1);
+      return "#" + c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
+    }
+
+    function keyWord(words) {
+      let best = -1, score = -1;
+      words.forEach((w, k) => { const b = bare(w), s = b.length * (STOP.has(b) ? 0.3 : 1) + k * 0.01; if (b && s > score) { score = s; best = k; } });
+      return best;
+    }
+
+    let shownKey = null, hero = null, quiet = false;
+    let breath = null, lastBeat = 0, idleTimer = null;
+    function build(ctx) {
+      const L = ctx.lyrics;
+      let text = L.current;
+      quiet = false;
+      if (ctx.focus || !L.hasLyrics || L.index < 0 || L.isInstrumental) { text = ctx.track.title || ""; quiet = !ctx.focus && L.hasLyrics; }
+      const key = ctx.track.id + "|" + text + "|" + quiet + "|" + innerWidth + "x" + innerHeight + "|" + ctx.params.weight + "|" + ctx.params.depth;
+      if (key === shownKey) return false;
+      shownKey = key;
+      const words = String(text).trim().split(/\s+/).filter(Boolean), k = keyWord(words);
+      $("ln").classList.toggle("quiet", quiet);
+      $("ln").innerHTML = words.map((w, i) => i === k ? `<span class="hb"><span class="hero">${esc(w)}</span></span>` : `<span class="w">${esc(w)}</span>`).join("");
+      hero = $("ln").querySelector(".hero");
+      return true;
+    }
+
+    const range = (ctx) => { const d = +(ctx.params.depth ?? 1); return [Math.max(30, 100 - 42 * d), Math.min(150, 100 + 32 * d)]; };
+
+    // the largest size at which the line, with its key word at its widest, fits the stage
+    function fit(ctx) {
+      const ln = $("ln"), stage = ln.parentElement, W = stage.clientWidth, H = stage.clientHeight;
+      if (!hero) return;
+      // a running breath would override the width being measured
+      if (breath) { breath.cancel(); breath = null; }
+      const hb = hero.parentElement, wide = range(ctx)[1];
+      hero.style.fontStretch = wide + "%";
+      hb.style.width = "auto";
+      let lo = 8, hi = Math.min(W, H) * 0.2;
+      for (let n = 0; n < 16; n++) {
+        const mid = (lo + hi) / 2;
+        ln.style.setProperty("--s", mid + "px");
+        const ok = ln.scrollHeight <= H && hb.offsetWidth <= W && [...ln.children].every((c) => c.offsetWidth <= W);
+        if (ok) lo = mid; else hi = mid;
+      }
+      ln.style.setProperty("--s", lo + "px");
+      hb.style.width = hb.offsetWidth + "px";
+      hero.style.fontStretch = "100%";
+    }
+
+    // ---------- breathing ----------
+    function breathe(ctx) {
+      if (!hero || !Wallpaper.live) return;
+      if (breath) breath.cancel();
+      const [lo, hi] = range(ctx), period = 60 / Math.max(30, +ctx.params.tempo || 72);
+      root.style.setProperty("--period", period.toFixed(3) + "s");
+      // a slow breath: in over one beat, out over the next
+      breath = hero.animate([{ fontStretch: lo + "%" }, { fontStretch: hi + "%" }], { duration: period * 1000, iterations: Infinity, direction: "alternate", easing: "ease-in-out" });
+      if (!ctx.track.isPlaying || Wallpaper.paused) breath.pause();
+    }
+    // with beat sync: every beat, the word swells and lets out its breath
+    function onBeat(b) {
+      if (!hero || !Wallpaper.live || !Wallpaper.ctx) return;
+      const ctx = Wallpaper.ctx, [lo, hi] = range(ctx);
+      const period = b.bpm ? 60 / b.bpm : 0.6;
+      if (breath) breath.cancel();
+      const peak = lo + (hi - lo) * (0.55 + 0.45 * Math.min(1, b.strength || 0.8));
+      breath = hero.animate([{ fontStretch: peak + "%", offset: 0 }, { fontStretch: lo + "%", offset: 1 }], { duration: period * 1000, easing: "cubic-bezier(.2,.7,.3,1)", fill: "forwards" });
+      lastBeat = performance.now();
+      root.classList.add("beating");
+      $("tempo").textContent = b.bpm ? "♩ = " + Math.round(b.bpm) : "On the beat";
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => { root.classList.remove("beating"); tempoLabel(Wallpaper.ctx); breathe(Wallpaper.ctx); }, Math.max(2500, period * 4000));
+    }
+    const tempoLabel = (ctx) => { if (ctx && !root.classList.contains("beating")) $("tempo").textContent = "♩ = " + (Math.round(Wallpaper.beat.bpm) || (+ctx.params.tempo || 72)) + (Wallpaper.beat.bpm ? "" : " · breathing"); };
+
+    Wallpaper.on("render", (ctx) => {
+      root.style.setProperty("--hero", legible(ctx.params.hero, ctx.params.background || "#120b22"));
+      tempoLabel(ctx);
+      build(ctx);
+    });
+    Wallpaper.on("layout", (ctx) => {
+      fit(ctx);
+      if (!root.classList.contains("beating")) breathe(ctx);
+    });
+    Wallpaper.on("beat", onBeat);
+    Wallpaper.on("pause", () => breath && breath.pause());
+    Wallpaper.on("resume", () => breath && Wallpaper.ctx && Wallpaper.ctx.track.isPlaying && breath.play());
+    addEventListener("resize", () => Wallpaper.refresh());
+  </script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+{
+  "name": "Riso Print",
+  "description": "The cover separated into two fluorescent inks and printed as halftone dots, the title overprinted. Each new line is a fresh pull, a hair out of register.",
+  "author": "Built-in",
+  "category": "print",
+  "params": [
+    {
+      "key": "paper",
+      "type": "color",
+      "label": "Paper",
+      "default": "#F3EFE6"
+    },
+    {
+      "key": "pink",
+      "type": "color",
+      "label": "First ink",
+      "default": "#FF48B0"
+    },
+    {
+      "key": "blue",
+      "type": "color",
+      "label": "Second ink",
+      "default": "#0078BF"
+    },
+    {
+      "key": "screen",
+      "type": "int",
+      "label": "Halftone dots across",
+      "min": 40,
+      "max": 160,
+      "default": 84
+    },
+    {
+      "key": "misregister",
+      "type": "number",
+      "label": "Misregistration",
+      "min": 0,
+      "max": 2,
+      "step": 0.1,
+      "default": 1
+    },
+    {
+      "key": "titleSize",
+      "type": "number",
+      "label": "Largest title size",
+      "min": 6,
+      "max": 22,
+      "step": 0.5,
+      "unit": "vmin",
+      "default": 18
+    },
+    {
+      "key": "grain",
+      "type": "bool",
+      "label": "Paper grain",
+      "default": true
+    }
+  ]
+}

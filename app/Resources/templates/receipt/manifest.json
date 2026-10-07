@@ -1,0 +1,77 @@
+{
+  "name": "Receipt",
+  "description": "The song printing on a thermal receipt as it plays: each line an item with its timestamp as the price, the current line in reverse, a total and a barcode at the end.",
+  "author": "Built-in",
+  "category": "print",
+  "params": [
+    {
+      "key": "paper",
+      "type": "color",
+      "label": "Paper",
+      "default": "#FBFAF6"
+    },
+    {
+      "key": "ink",
+      "type": "color",
+      "label": "Print",
+      "default": "#1D1D1F"
+    },
+    {
+      "key": "blur",
+      "type": "number",
+      "label": "Background blur",
+      "min": 20,
+      "max": 200,
+      "step": 1,
+      "unit": "px",
+      "default": 90
+    },
+    {
+      "key": "dim",
+      "type": "number",
+      "label": "Background darkness",
+      "min": 0,
+      "max": 0.9,
+      "step": 0.01,
+      "default": 0.3
+    },
+    {
+      "key": "side",
+      "type": "select",
+      "label": "Receipt on the",
+      "default": "right",
+      "options": [
+        {
+          "value": "right",
+          "label": "Right"
+        },
+        {
+          "value": "left",
+          "label": "Left"
+        }
+      ]
+    },
+    {
+      "key": "titleFont",
+      "type": "font",
+      "label": "Title font",
+      "default": "SF Pro"
+    },
+    {
+      "key": "tilt",
+      "type": "number",
+      "label": "Tilt",
+      "min": -6,
+      "max": 6,
+      "step": 0.1,
+      "unit": "deg",
+      "default": -1.6
+    },
+    {
+      "key": "grain",
+      "type": "bool",
+      "label": "Film grain",
+      "default": true
+    }
+  ]
+}
