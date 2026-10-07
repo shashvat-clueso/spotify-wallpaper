@@ -71,6 +71,7 @@ function applyStatus(msg) {
   S.recents = msg.recents || [];
   S.favorites = new Set(msg.favorites || []);
   S.lyrics = msg.lyrics || S.lyrics;
+  S.settings = msg.settings || S.settings;
   if (S.target !== "all" && !S.displays.some((d) => d.id === S.target)) S.target = "all";
   if (S.disp == null || !S.displays.some((d) => d.id === S.disp)) S.disp = S.displays[0]?.id ?? null;
   if (msg.thumbs) applyThumbs(msg.thumbs);
@@ -229,6 +230,7 @@ function renderTabs() {
   if (S.tab === "wallpaper" && S.view === "gallery") { renderGallery(); }
   if (S.tab === "displays") { renderDisplays(); requestAnimationFrame(layoutScreens); }
   if (S.tab === "lyrics") { renderLyrics(); scrollLines(true); }
+  if (S.tab === "settings") renderSettings();
   updatePause();
 }
 $("tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { closeSheet(); openTab(b.dataset.tab); } });
@@ -1024,15 +1026,81 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     return;
   }
-  if (e.metaKey && /^[1-4]$/.test(e.key)) {
+  if (e.metaKey && (/^[1-5]$/.test(e.key) || e.key === ",")) {
     e.preventDefault();
     closeSheet();
-    openTab(["wallpaper", "displays", "history", "lyrics"][+e.key - 1]);
+    openTab(e.key === "," ? "settings" : ["wallpaper", "displays", "history", "lyrics", "settings"][+e.key - 1]);
   } else if ((e.metaKey && e.key === "f") || (e.key === "/" && !typing)) {
     e.preventDefault();
     if (!(S.tab === "wallpaper" && S.view === "gallery")) showGallery();
     $("search").focus();
   }
+});
+
+// ================================================================== Settings
+
+function renderSettings() {
+  const v = S.settings || {};
+  const tg = (key, label) => `<button type="button" class="tg" role="switch" aria-checked="${!!v[key]}" aria-label="${esc(label)}" data-set="${key}"></button>`;
+  const row = (label, note, ctl = "", acts = "") => `<div class="pref"><b>${label}</b>${ctl ? `<div class="ctl">${ctl}</div>` : ""}${note ? `<small${note.live ? ' class="live"' : ""}>${esc(note.text ?? note)}</small>` : ""}${acts ? `<div class="acts">${acts}</div>` : ""}</div>`;
+  const btn = (action, label, cls = "") => `<button type="button" class="mbtn sm ${cls}" data-act="${action}">${label}</button>`;
+  const seg = (key, opts) => `<div class="seg" data-seg="${key}">${opts.map(([val, label]) => `<button type="button" data-val="${esc(val)}" class="${String(v[key]) === String(val) ? "on" : ""}">${label}</button>`).join("")}</div>`;
+  const card = (title, rows) => `<div class="card"><div class="card-head"><span class="lbl">${title}</span></div>${rows.join("")}</div>`;
+  const sharing = v.sharingNow ? { text: `${v.sharingNow} is sharing your screen, so lyrics are hidden.`, live: true }
+    : v.canReadTitles ? "Notices Zoom, Google Meet, Teams, Slack, Discord, FaceTime, Webex and Screen Sharing."
+    : "Notices Zoom, Teams and Screen Sharing. Sharing from a browser needs Screen Recording permission.";
+  const kb = (k) => `<kbd>${k}</kbd>`;
+  const html = [
+    card("General", [
+      row("Launch at login", "", tg("launchAtLogin", "Launch at login")),
+      row("Pause wallpaper", "Puts your own wallpaper back until you resume.", tg("paused", "Pause wallpaper")),
+      row("Animation frame rate", "Lower rates save battery. Lyric timing stays exact.", seg("refreshRate", [[0, "Max"], [60, "60"], [30, "30"], [15, "15"]])),
+    ]),
+    card("Lyrics &amp; privacy", [
+      row("Focus Mode", "Hides lyrics on every screen until you turn it off.", kb("⌃⌥⌘F") + tg("focus", "Focus Mode")),
+      row("Hide lyrics while screen sharing", sharing, tg("hideWhileSharing", "Hide lyrics while screen sharing"),
+        v.hideWhileSharing && !v.canReadTitles ? btn("requestScreenRecording", "Detect browsers too…") : ""),
+    ]),
+    card("Music data", [
+      row("Weather", "Uses your approximate location and Open-Meteo, for Weather & Time and other templates.", tg("useWeather", "Weather")),
+      row("Sync to the beat", "Analyses Spotify's sound live so templates can move with the music. Nothing is recorded. Needs Screen Recording permission.", tg("beatSync", "Sync to the beat")),
+    ]),
+    card("Lyric cards", [
+      row("Size", "The current template with the line being sung, saved to Pictures and copied.", seg("shareFormat", [["story", "Story 9:16"], ["square", "Square"]]),
+        btn("share", "Share lyric card") + kb("⌃⌥⌘L")),
+    ]),
+    card("History", [
+      row("Keep a history of wallpapers", `${v.historyCount ?? 0} wallpaper${v.historyCount === 1 ? "" : "s"} saved.`, tg("keepHistory", "Keep a history"),
+        btn("openHistory", "Open History Wall") + btn("clearHistory", "Clear History…", "danger")),
+    ]),
+    card("Templates", [
+      row("Your templates", "Templates you make or install live in a folder you can edit.", "",
+        btn("openTemplatesFolder", "Open templates folder") + btn("openBuilder", "Template Builder") + `<button type="button" class="mbtn sm" data-reload>Reload templates</button>`),
+    ]),
+    card("Updates", [
+      row(`Spotify Wallpaper ${esc(v.version || "")}`, v.updateStatus || "Updates come from GitHub releases.", "", btn("checkUpdates", "Check for updates") + btn("whatsNew", "What's new")),
+      row("Install updates automatically", "", tg("autoUpdate", "Install updates automatically")),
+    ]),
+    card("Keyboard", [
+      row("Open Spotify Wallpaper", "", kb("⌘O")), row("Quick Switcher", "", kb("⌃⌥⌘W")),
+      row("Share lyric card", "", kb("⌃⌥⌘L")), row("Focus Mode", "", kb("⌃⌥⌘F")), row("Tabs in this window", "", kb("⌘1–5")),
+    ]),
+  ].join("");
+  setHTML($("prefs"), html);
+  $("prefs").querySelectorAll(".seg").forEach(wireSeg);
+}
+$("prefs").addEventListener("click", (e) => {
+  const t = e.target.closest("[data-set]"), sg = e.target.closest("[data-seg] > button"), a = e.target.closest("[data-act]");
+  if (t) {
+    const on = t.getAttribute("aria-checked") !== "true";
+    t.setAttribute("aria-checked", on); S.settings[t.dataset.set] = on;
+    post({ type: "setting", key: t.dataset.set, value: on });
+  } else if (sg) {
+    const key = sg.parentElement.dataset.seg, raw = sg.dataset.val, val = key === "refreshRate" ? +raw : raw;
+    S.settings[key] = val; setSeg(sg.parentElement, (b) => b === sg);
+    post({ type: "setting", key, value: val });
+  } else if (a) post({ type: "settingAction", action: a.dataset.act });
+  else if (e.target.closest("[data-reload]")) post({ type: "reload" });
 });
 
 // ================================================================== render all
@@ -1046,6 +1114,7 @@ function renderAll() {
   $("sampleNote").hidden = !isSample();
   if (S.tab === "displays") renderDisplays();
   if (S.tab === "lyrics") renderLyrics();
+  if (S.tab === "settings") renderSettings();
 }
 
 post({ type: "ready" });

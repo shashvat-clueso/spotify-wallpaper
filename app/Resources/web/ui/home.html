@@ -15,6 +15,7 @@
       <button type="button" role="tab" data-tab="displays">Displays</button>
       <button type="button" role="tab" data-tab="history">History</button>
       <button type="button" role="tab" data-tab="lyrics">Lyrics</button>
+      <button type="button" role="tab" data-tab="settings">Settings</button>
     </nav>
     <span class="spacer"></span>
     <button type="button" class="np" id="np" title="Lyrics source and timing"></button>
@@ -113,6 +114,11 @@
           <div class="lines" id="lines"></div>
         </div>
       </div>
+    </section>
+
+    <!-- Settings: everything app-wide -->
+    <section class="tab" id="tab-settings" role="tabpanel" hidden>
+      <div class="prefs-scroll"><div class="prefs" id="prefs"></div></div>
     </section>
   </main>
 

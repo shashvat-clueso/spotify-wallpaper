@@ -15,6 +15,9 @@ All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](
 - **Quick Switcher** (⌃⌥⌘W): a search panel over your desktop to switch templates and run actions (Share Lyric Card,
   Focus Mode, lyrics ±0.5 s, Pause, History Wall). ↩ puts a template on every screen, ⌥↩ on the screen under the pointer.
 - The History Wall and the lyrics source and timing controls now live in tabs in the app's window.
+- **Settings** (⌘,): a tab in the app's window for everything app-wide (launch at login, frame rate, Focus Mode and
+  screen sharing, weather, beat sync, lyric card size, history, templates folder, updates, keyboard shortcuts). The menu
+  bar menu now holds only everyday actions.
 - **Three new templates:** **Cassette** (a mixtape whose reels wind through the song, with the current line handwritten
   on the label), **Liner Notes** (the CD booklet, with the whole song typeset beside the cover) and **Weather & Time**
   (a sky that follows the time of day and your local weather, with rain running down the glass).

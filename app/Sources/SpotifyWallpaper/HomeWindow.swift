@@ -7,6 +7,7 @@ import WebKit
 ///  - Displays: the real display arrangement; drop a template on a screen to set that screen only
 ///  - History: the History Wall (ui/history.html, embedded; its native side is HistoryBridge)
 ///  - Lyrics: lyrics source and timing for the current song
+///  - Settings: everything app-wide (the menu bar menu keeps only everyday actions)
 /// Only the preview is a live template; everything else shows ThumbnailService's stills.
 @MainActor
 final class HomeWindowController: NSWindowController, WKScriptMessageHandler, NSWindowDelegate {
@@ -26,6 +27,10 @@ final class HomeWindowController: NSWindowController, WKScriptMessageHandler, NS
 
     var onOpenBuilder: ((String?) -> Void)?
     var onShareCard: (() -> Void)?
+    /// App-wide settings for the Settings tab, a change to one, and its buttons (all live in AppDelegate).
+    var settings: (() -> [String: Any])?
+    var onSetting: ((String, Any?) -> Void)?
+    var onSettingAction: ((String) -> Void)?
     var installer: TemplateInstaller?
 
     init(engine: Engine, store: TemplateStore, paths: Paths, thumbs: ThumbnailService, history: HistoryStore) {
@@ -81,7 +86,7 @@ final class HomeWindowController: NSWindowController, WKScriptMessageHandler, NS
         visibilityChanged()
     }
 
-    /// Opens Home on a tab: "wallpaper", "gallery", "displays", "history" or "lyrics".
+    /// Opens Home on a tab: "wallpaper", "gallery", "displays", "history", "lyrics" or "settings".
     func show(tab: String) {
         navigate(["tab": tab])
         show()
@@ -194,6 +199,10 @@ final class HomeWindowController: NSWindowController, WKScriptMessageHandler, NS
             pushState()
         case "lyricsRefetch":
             engine.refetchLyrics()
+        case "setting":
+            if let key = body["key"] as? String { onSetting?(key, body["value"]) }
+        case "settingAction":
+            if let action = body["action"] as? String { onSettingAction?(action) }
         case "pref":
             if let key = body["key"] as? String { UserDefaults.standard.set(body["value"], forKey: "home." + key) }
         default:
@@ -310,6 +319,7 @@ final class HomeWindowController: NSWindowController, WKScriptMessageHandler, NS
             "overrides": overrides,
             "recents": store.recentIDs,
             "favorites": store.favoriteIDs.sorted(),
+            "settings": settings?() ?? [:],
             "thumbs": thumbs.versions(),
             "lyrics": [
                 "playing": engine.track != nil,

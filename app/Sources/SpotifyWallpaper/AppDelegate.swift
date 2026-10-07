@@ -125,16 +125,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func shareLyricCard() { shareCard.share() }
 
-    @objc private func pickShareFormat(_ sender: NSMenuItem) {
-        if let raw = sender.representedObject as? String, let f = ShareCard.Format(rawValue: raw) { shareCard.format = f }
-    }
-
     @objc private func openHistory() {
         openHome()
         home?.show(tab: "history")
     }
-
-    @objc private func toggleHistory() { history.enabled.toggle() }
 
     @objc private func clearHistory() {
         history.load()
@@ -147,39 +141,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alert.addButton(withTitle: "Cancel")
         alert.buttons.first?.hasDestructiveAction = true
         if alert.runModal() == .alertFirstButtonReturn { history.clear() }
-    }
-
-    private func appFeatureItems(_ menu: NSMenu) {
-        let ctrlOptCmd: NSEvent.ModifierFlags = [.control, .option, .command]
-        let share = add(menu, "Share Lyric Card", #selector(shareLyricCard), "l")
-        share.keyEquivalentModifierMask = ctrlOptCmd
-        share.isEnabled = engine.track != nil
-        let format = NSMenuItem(title: "Lyric Card Size", action: nil, keyEquivalent: "")
-        let formats = NSMenu()
-        for f in ShareCard.Format.allCases {
-            let item = NSMenuItem(title: f.title, action: #selector(pickShareFormat(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = f.rawValue
-            item.state = shareCard.format == f ? .on : .off
-            formats.addItem(item)
-        }
-        format.submenu = formats
-        menu.addItem(format)
-        menu.addItem(.separator())
-
-        let focus = add(menu, "Focus Mode", #selector(toggleFocusMode), "f")
-        focus.keyEquivalentModifierMask = ctrlOptCmd
-        focus.state = manualFocus ? .on : .off
-        add(menu, "Hide Lyrics While Screen Sharing", #selector(toggleHideWhileSharing), "").state = hideLyricsWhileSharing ? .on : .off
-        if hideLyricsWhileSharing && focusMonitor.sharing {
-            let note = NSMenuItem(title: "Screen sharing detected (\(focusMonitor.reason)): lyrics hidden", action: nil, keyEquivalent: "")
-            note.isEnabled = false
-            menu.addItem(note)
-        } else if hideLyricsWhileSharing && !FocusMonitor.canReadTitles {
-            add(menu, "Detect Sharing in Browsers Too…", #selector(requestScreenRecording), "").toolTip =
-                "Window titles (like Chrome's \"is sharing your screen\" bar) need Screen Recording permission. Without it, only Zoom, Teams and Screen Sharing are noticed."
-        }
-        menu.addItem(.separator())
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -206,53 +167,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: menu
 
+    /// Everyday actions only; everything app-wide is in Home's Settings tab.
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let playing = NSMenuItem(title: engine.nowPlayingText, action: nil, keyEquivalent: "")
         playing.isEnabled = false
         menu.addItem(playing)
+        if hideLyricsWhileSharing && focusMonitor.sharing {
+            let note = NSMenuItem(title: "Lyrics hidden: \(focusMonitor.reason) is sharing your screen", action: nil, keyEquivalent: "")
+            note.isEnabled = false
+            menu.addItem(note)
+        }
         menu.addItem(.separator())
 
+        let ctrlOptCmd: NSEvent.ModifierFlags = [.control, .option, .command]
         add(menu, "Open Spotify Wallpaper…", #selector(openHome), "o")
-        add(menu, "Quick Switcher…", #selector(toggleQuickSwitcher), "w").keyEquivalentModifierMask = [.control, .option, .command]
-        add(menu, "Template Builder…", #selector(newBuilderTemplate), "")
-        add(menu, "History Wall…", #selector(openHistory), "")
-        menu.addItem(lyricsMenu())
-
-        let rate = NSMenuItem(title: "Refresh Rate", action: nil, keyEquivalent: "")
-        let rates = NSMenu()
-        for fps in Engine.refreshRates {
-            let item = NSMenuItem(title: fps == 0 ? "Display Maximum" : "\(fps) fps", action: #selector(pickRefreshRate(_:)), keyEquivalent: "")
-            item.target = self
-            item.tag = fps
-            item.state = engine.refreshRate == fps ? .on : .off
-            rates.addItem(item)
-        }
-        rates.addItem(.separator())
-        let note = NSMenuItem(title: "Lower rates save battery. Lyric timing stays exact.", action: nil, keyEquivalent: "")
-        note.isEnabled = false
-        rates.addItem(note)
-        rate.submenu = rates
-        menu.addItem(rate)
-        add(menu, "Use Weather", #selector(toggleWeather), "").state = engine.useWeather ? .on : .off
-        add(menu, "Sync to the Beat (needs Screen Recording)", #selector(toggleBeatSync), "").state = engine.beatSync ? .on : .off
+        add(menu, "Quick Switcher…", #selector(toggleQuickSwitcher), "w").keyEquivalentModifierMask = ctrlOptCmd
+        menu.addItem(.separator())
+        let share = add(menu, "Share Lyric Card", #selector(shareLyricCard), "l")
+        share.keyEquivalentModifierMask = ctrlOptCmd
+        share.isEnabled = engine.track != nil
+        let focus = add(menu, "Focus Mode", #selector(toggleFocusMode), "f")
+        focus.keyEquivalentModifierMask = ctrlOptCmd
+        focus.state = manualFocus ? .on : .off
         add(menu, engine.paused ? "Resume Wallpaper" : "Pause Wallpaper", #selector(togglePause), "")
         menu.addItem(.separator())
-        appFeatureItems(menu)
-        add(menu, "Keep a History of Wallpapers", #selector(toggleHistory), "").state = history.enabled ? .on : .off
-        add(menu, "Clear History…", #selector(clearHistory), "")
-        menu.addItem(.separator())
-        add(menu, "Open Templates Folder", #selector(openTemplatesFolder), "")
-        menu.addItem(.separator())
-        let version = NSMenuItem(title: updater.status ?? "Spotify Wallpaper \(updater.currentVersion)", action: nil, keyEquivalent: "")
-        version.isEnabled = false
-        menu.addItem(version)
-        add(menu, "What's New…", #selector(openWhatsNew), "")
-        add(menu, "Check for Updates…", #selector(checkForUpdates), "")
-        add(menu, "Automatically Install Updates", #selector(toggleAutoUpdate), "").state = updater.automatic ? .on : .off
-        add(menu, "Launch at Login", #selector(toggleLaunchAtLogin), "").state =
-            SMAppService.mainApp.status == .enabled ? .on : .off
-        menu.addItem(.separator())
+        if let status = updater.status {
+            let note = NSMenuItem(title: status, action: nil, keyEquivalent: "")
+            note.isEnabled = false
+            menu.addItem(note)
+        }
+        add(menu, "Settings…", #selector(openSettingsTab), ",")
         add(menu, "Quit Spotify Wallpaper", #selector(quit), "q")
     }
 
@@ -271,55 +216,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func checkForUpdates() { Task { await updater.check(userInitiated: true) } }
 
-    @objc private func toggleAutoUpdate() {
-        updater.automatic.toggle()
-        if updater.automatic { Task { await updater.check(userInitiated: false) } }
-    }
-
-    @objc private func pickRefreshRate(_ sender: NSMenuItem) { engine.refreshRate = sender.tag }
-
-    /// Quick timing nudges; the source picker and the rest live in Home's Lyrics tab.
-    private func lyricsMenu() -> NSMenuItem {
-        let item = NSMenuItem(title: "Lyrics", action: nil, keyEquivalent: "")
-        let sub = NSMenu()
-        let hasLyrics = !engine.lyricsSources.isEmpty
-        let info = NSMenuItem(title: engine.track == nil ? "Nothing playing"
-                                : engine.lyricsSourceText.isEmpty ? "No lyrics found" : "From \(engine.lyricsSourceText)",
-                              action: nil, keyEquivalent: "")
-        info.isEnabled = false
-        sub.addItem(info)
-        sub.addItem(.separator())
-        for (title, delta) in [("Show Lines Earlier (−0.5 s)", -0.5), ("Show Lines Later (+0.5 s)", 0.5)] {
-            let n = NSMenuItem(title: title, action: #selector(nudgeLyrics(_:)), keyEquivalent: "")
-            n.target = self
-            n.representedObject = delta
-            n.isEnabled = hasLyrics
-            sub.addItem(n)
-        }
-        let offset = engine.lyricsOffset
-        let reset = NSMenuItem(title: offset == 0 ? "Timing: as published" : String(format: "Reset Timing (now %+.2f s)", offset),
-                               action: offset == 0 ? nil : #selector(resetLyricsTiming), keyEquivalent: "")
-        reset.target = self
-        reset.isEnabled = offset != 0
-        sub.addItem(reset)
-        sub.addItem(.separator())
-        let more = NSMenuItem(title: "Source & Timing…", action: #selector(openLyricsTab), keyEquivalent: "")
-        more.target = self
-        sub.addItem(more)
-        item.submenu = sub
-        return item
-    }
-
     @objc private func openLyricsTab() {
         openHome()
         home?.show(tab: "lyrics")
     }
-
-    @objc private func nudgeLyrics(_ sender: NSMenuItem) {
-        if let d = sender.representedObject as? Double { engine.lyricsOffset = (engine.lyricsOffset + d).rounded(toPlaces: 2) }
-    }
-
-    @objc private func resetLyricsTiming() { engine.lyricsOffset = 0 }
 
     /// Home: the app's main window (it replaced Customize).
     @objc private func openHome() {
@@ -328,6 +228,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             home?.onOpenBuilder = { [weak self] id in self?.openBuilder(id) }
             home?.onShareCard = { [weak self] in self?.shareCard.share() }
             home?.installer = installer
+            home?.settings = { [weak self] in self?.settingsSnapshot() ?? [:] }
+            home?.onSetting = { [weak self] key, value in self?.applySetting(key, value) }
+            home?.onSettingAction = { [weak self] action in self?.settingAction(action) }
+            updater.onStatusChange = { [weak self] in self?.home?.pushState() }
         }
         home?.show()
     }
@@ -347,10 +251,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func togglePause() { engine.paused.toggle() }
-
-    @objc private func toggleWeather() { engine.useWeather.toggle() }
-
-    @objc private func toggleBeatSync() { engine.beatSync.toggle() }
 
     @objc private func openTemplatesFolder() { NSWorkspace.shared.open(paths.userTemplates) }
 
@@ -413,5 +313,69 @@ extension AppDelegate {
             quickSwitcher = qs
         }
         quickSwitcher?.toggle()
+    }
+}
+
+// MARK: - Settings (Home's Settings tab)
+
+extension AppDelegate {
+    @objc fileprivate func openSettingsTab() {
+        openHome()
+        home?.show(tab: "settings")
+    }
+
+    fileprivate func settingsSnapshot() -> [String: Any] {
+        [
+            "launchAtLogin": SMAppService.mainApp.status == .enabled,
+            "paused": engine.paused,
+            "refreshRate": engine.refreshRate,
+            "focus": manualFocus,
+            "hideWhileSharing": hideLyricsWhileSharing,
+            "canReadTitles": FocusMonitor.canReadTitles,
+            "sharingNow": focusMonitor.sharing ? focusMonitor.reason : "",
+            "useWeather": engine.useWeather,
+            "beatSync": engine.beatSync,
+            "shareFormat": shareCard.format.rawValue,
+            "keepHistory": history.enabled,
+            "historyCount": history.entries.count,
+            "autoUpdate": updater.automatic,
+            "version": updater.currentVersion,
+            "updateStatus": updater.status ?? "",
+        ]
+    }
+
+    fileprivate func applySetting(_ key: String, _ value: Any?) {
+        let on = value as? Bool ?? false
+        switch key {
+        case "launchAtLogin": if on != (SMAppService.mainApp.status == .enabled) { toggleLaunchAtLogin() }
+        case "paused": engine.paused = on
+        case "refreshRate": if let n = (value as? NSNumber)?.intValue { engine.refreshRate = n }
+        case "focus": if on != manualFocus { toggleFocusMode() }
+        case "hideWhileSharing": if on != hideLyricsWhileSharing { toggleHideWhileSharing() }
+        case "useWeather": engine.useWeather = on
+        case "beatSync": engine.beatSync = on
+        case "shareFormat": if let raw = value as? String, let f = ShareCard.Format(rawValue: raw) { shareCard.format = f }
+        case "keepHistory": history.enabled = on
+        case "autoUpdate":
+            updater.automatic = on
+            if on { Task { await updater.check(userInitiated: false) } }
+        default: break
+        }
+        home?.pushState()
+    }
+
+    fileprivate func settingAction(_ action: String) {
+        switch action {
+        case "requestScreenRecording": requestScreenRecording()
+        case "share": shareLyricCard()
+        case "openHistory": openHistory()
+        case "clearHistory": clearHistory()
+        case "openTemplatesFolder": openTemplatesFolder()
+        case "openBuilder": newBuilderTemplate()
+        case "checkUpdates": checkForUpdates()
+        case "whatsNew": openWhatsNew()
+        default: break
+        }
+        home?.pushState()
     }
 }
