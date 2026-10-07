@@ -1,0 +1,136 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Spotify Wallpaper</title>
+<link rel="stylesheet" href="home.css">
+<script src="/runtime/runtime.js"></script>
+</head>
+<body>
+  <div class="bg" aria-hidden="true"><i id="bgA"></i><i id="bgB"></i></div>
+
+  <header class="topbar" id="topbar">
+    <nav class="seg tabs" id="tabs" role="tablist" aria-label="Sections">
+      <button type="button" role="tab" data-tab="wallpaper">Wallpaper</button>
+      <button type="button" role="tab" data-tab="displays">Displays</button>
+      <button type="button" role="tab" data-tab="history">History</button>
+      <button type="button" role="tab" data-tab="lyrics">Lyrics</button>
+      <button type="button" role="tab" data-tab="settings">Settings</button>
+    </nav>
+    <span class="spacer"></span>
+    <button type="button" class="np" id="np" title="Lyrics source and timing"></button>
+    <button type="button" class="mbtn" id="share" title="Share Lyric Card (⌃⌥⌘L)">Share card</button>
+    <button type="button" class="mbtn" id="builder" title="Make a template in the Template Builder">Builder</button>
+    <button type="button" class="ibtn" id="moreTop" title="Import, export and the templates folder" aria-haspopup="menu" aria-label="More"></button>
+  </header>
+
+  <main>
+    <!-- Wallpaper: the stage, and "Browse all" -->
+    <section class="tab" id="tab-wallpaper" role="tabpanel">
+      <div class="view stage-view" id="stageView">
+        <div class="stage" id="stage">
+          <div class="pv" id="pv">
+            <iframe id="preview" title="Live preview" tabindex="-1"></iframe>
+            <div class="pv-chips">
+              <div class="seg chip" id="target" aria-label="Preview on"></div>
+            </div>
+            <div class="pv-note" id="sampleNote" hidden>Sample song · play something in Spotify to see it live</div>
+          </div>
+          <aside class="insp floating" id="insp" aria-label="Template settings"></aside>
+        </div>
+        <div class="shelf-wrap">
+          <div class="shelf-head"><span class="lbl">Recent &amp; favourites</span><button type="button" class="link" id="browseLink">Browse all</button></div>
+          <div class="shelf" id="shelf"></div>
+        </div>
+      </div>
+
+      <div class="view gallery-view" id="galleryView" hidden>
+        <aside class="side">
+          <button type="button" class="back" id="back"><span aria-hidden="true">‹</span> Wallpaper</button>
+          <label class="search"><span class="ic" id="searchIc"></span><input id="search" type="search" placeholder="Search templates" spellcheck="false" autocomplete="off"></label>
+          <div class="cats" id="cats" role="listbox" aria-label="Categories"></div>
+          <div class="lbl side-lbl">Make your own</div>
+          <button type="button" class="cat" id="sideNew">New in Builder</button>
+          <button type="button" class="cat" id="sideImport">Import template…</button>
+        </aside>
+        <div class="gmain" id="gmain">
+          <div class="ghead">
+            <h2 id="gTitle">All templates</h2><span class="gcount" id="gCount"></span>
+            <span class="spacer"></span>
+            <div class="seg" id="mode" aria-label="Layout"><button type="button" data-mode="grid">Grid</button><button type="button" data-mode="crate">Crate</button></div>
+          </div>
+          <div id="gridBox">
+            <div class="hero" id="hero"></div>
+            <div class="cards" id="cards"></div>
+          </div>
+          <div class="crate-box" id="crateBox" hidden>
+            <div class="crate" id="crate" tabindex="0" aria-label="Templates, use the arrow keys to flip"></div>
+            <div class="crate-info" id="crateInfo"></div>
+          </div>
+          <div class="empty" id="gEmpty" hidden><h3>Nothing matches</h3><p>Try another word, or pick All.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Displays -->
+    <section class="tab" id="tab-displays" role="tabpanel" hidden>
+      <div class="disp">
+        <div class="disp-main">
+          <div class="canvas" id="canvas"></div>
+          <div class="hint" id="dispHint">Drag a template onto a screen, or select a screen and click one.</div>
+          <div class="tray" id="tray"></div>
+        </div>
+        <aside class="insp side-insp" id="dispInsp" aria-label="Display settings"></aside>
+      </div>
+    </section>
+
+    <!-- History: the History Wall, embedded -->
+    <section class="tab" id="tab-history" role="tabpanel" hidden>
+      <iframe id="historyFrame" title="History Wall"></iframe>
+    </section>
+
+    <!-- Lyrics -->
+    <section class="tab" id="tab-lyrics" role="tabpanel" hidden>
+      <div class="lyr">
+        <div class="lyr-col">
+          <div class="card" id="lyrNow"></div>
+          <div class="card">
+            <div class="card-head"><span class="lbl">Source</span></div>
+            <div class="sources" id="sources" role="radiogroup" aria-label="Lyrics source"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><span class="lbl">Timing for this song</span></div>
+            <div class="timing">
+              <button type="button" class="mbtn" id="earlier" title="Show lines earlier">− 0.5 s</button>
+              <output id="offset" aria-live="polite"></output>
+              <button type="button" class="mbtn" id="later" title="Show lines later">+ 0.5 s</button>
+            </div>
+            <div class="timing-foot"><span class="note" id="offsetNote"></span><button type="button" class="link" id="resetTiming">Reset</button></div>
+          </div>
+          <button type="button" class="mbtn wide" id="refetch">Search again</button>
+        </div>
+        <div class="card lines-card">
+          <div class="card-head"><span class="lbl">Lyrics</span><span class="note" id="linesNote"></span></div>
+          <div class="lines" id="lines"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Settings: everything app-wide -->
+    <section class="tab" id="tab-settings" role="tabpanel" hidden>
+      <div class="prefs-scroll"><div class="prefs" id="prefs"></div></div>
+    </section>
+  </main>
+
+  <div class="sheet" id="sheet" hidden>
+    <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheetName">
+      <div class="sheet-pv" id="sheetPv"></div>
+      <div class="sheet-col" id="sheetCol"></div>
+    </div>
+  </div>
+
+  <div class="menu" id="menu" role="menu" hidden></div>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="home.js"></script>
+</body>
+</html>

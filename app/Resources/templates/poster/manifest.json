@@ -2,6 +2,7 @@
   "name": "Album Poster",
   "description": "A minimalist album poster: paper, a flat cover, a big condensed title, the lyrics set like a tracklist and swatches from the art.",
   "author": "Built-in",
+  "category": "print",
   "params": [
     { "key": "paper", "type": "color", "label": "Paper", "default": "auto:paper" },
     { "key": "ink", "type": "color", "label": "Ink", "default": "#1C1C1C" },

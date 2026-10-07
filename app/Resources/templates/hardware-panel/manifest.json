@@ -1,0 +1,66 @@
+{
+  "name": "Hardware Panel",
+  "description": "The song as a little device on your desk: the cover through a speaker grille, the lyric on an OLED, and four knobs in the cover's colours that turn with the song.",
+  "author": "Built-in",
+  "category": "objects",
+  "params": [
+    {
+      "key": "body",
+      "type": "color",
+      "label": "Device",
+      "default": "#EEEDE8"
+    },
+    {
+      "key": "room",
+      "type": "color",
+      "label": "Desk",
+      "default": "auto:light"
+    },
+    {
+      "key": "accent",
+      "type": "color",
+      "label": "Display accent",
+      "default": "#FF6A2B"
+    },
+    {
+      "key": "knobs",
+      "type": "select",
+      "label": "Knob colours",
+      "default": "cover",
+      "options": [
+        {
+          "value": "cover",
+          "label": "From the cover"
+        },
+        {
+          "value": "classic",
+          "label": "Classic (grey and orange)"
+        }
+      ]
+    },
+    {
+      "key": "grille",
+      "type": "number",
+      "label": "Grille holes",
+      "min": 24,
+      "max": 80,
+      "step": 1,
+      "default": 40
+    },
+    {
+      "key": "thump",
+      "type": "number",
+      "label": "Beat thump",
+      "min": 0,
+      "max": 2,
+      "step": 0.1,
+      "default": 1
+    },
+    {
+      "key": "grain",
+      "type": "bool",
+      "label": "Film grain",
+      "default": true
+    }
+  ]
+}

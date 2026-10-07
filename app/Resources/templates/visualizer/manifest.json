@@ -2,6 +2,7 @@
   "name": "Visualizer",
   "description": "A bar visualizer in the cover's colors bouncing along, with lyrics fading in line by line.",
   "author": "Built-in",
+  "category": "objects",
   "params": [
     { "key": "colorA", "type": "color", "label": "Bars from", "default": "auto:vibrant" },
     { "key": "colorB", "type": "color", "label": "Bars to", "default": "auto:light" },

@@ -62,6 +62,12 @@ final class DesktopLayer: NSObject, WKNavigationDelegate {
         if loaded { webView.evaluateJavaScript("window.__sw && __sw.clock(\(json))") }
     }
 
+    /// A beat or loudness update (see AudioAnalyzer); dropped while the layer can't be seen.
+    func sendBeat(_ json: String) {
+        guard loaded, visible, window.occlusionState.contains(.visible) else { return }
+        webView.evaluateJavaScript("window.__sw && __sw.beat && __sw.beat(\(json))")
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         loaded = true
         if let full { webView.evaluateJavaScript("window.__sw && __sw.live(\(full))") }

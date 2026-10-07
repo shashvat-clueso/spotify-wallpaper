@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import ServiceManagement
 
 private extension Double {
@@ -14,10 +15,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var store = TemplateStore(paths: paths)
     private lazy var engine = Engine(store: store, paths: paths)
     private var statusItem: NSStatusItem!
-    private var settings: SettingsWindowController?
+    private var home: HomeWindowController?
+    private lazy var thumbs = ThumbnailService(engine: engine, store: store, paths: paths)
     private var builder: BuilderWindowController?
     private var whatsNew: WhatsNewWindowController?
     private let updater = Updater()
+    private lazy var history = HistoryStore(paths: paths)
+    private lazy var shareCard = ShareCard(engine: engine, store: store)
+    private let focusMonitor = FocusMonitor()
+    private lazy var installer = TemplateInstaller(store: store, paths: paths)
+    /// Focus Mode switched on by hand (not remembered across launches).
+    private var manualFocus = false
+    /// .swtemplate files / install links that arrived before launch finished.
+    private var pendingOpen: [URL]? = []
+    private var quickSwitcher: QuickSwitcher?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let probe = LyricsProbe.request {
@@ -36,17 +47,100 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         statusItem.menu = menu
 
-        engine.onStateChange = { [weak self] in self?.settings?.pushState(); self?.builder?.pushState() }
-        engine.onClock = { [weak self] clock in self?.settings?.pushClock(clock); self?.builder?.pushClock(clock) }
-        engine.onTemplateFilesChanged = { [weak self] in self?.settings?.templateFilesChanged() }
+        engine.onStateChange = { [weak self] in self?.home?.pushState(); self?.builder?.pushState() }
+        engine.onClock = { [weak self] clock in self?.home?.pushClock(clock); self?.builder?.pushClock(clock) }
+        engine.onTemplateFilesChanged = { [weak self] in self?.thumbs.invalidateAll(); self?.home?.templateFilesChanged() }
+        setUpAppFeatures()
         engine.start()
         updater.start()
 
         if WhatsNewWindowController.shouldShowAfterUpdate() { openWhatsNew() }
         if !UserDefaults.standard.bool(forKey: "launchedBefore") {
             UserDefaults.standard.set(true, forKey: "launchedBefore")
-            openSettings()
+            openHome()
         }
+        let queued = pendingOpen ?? []
+        pendingOpen = nil
+        queued.forEach { installer.open($0) }
+    }
+
+    // MARK: history, lyric cards, focus, template sharing
+
+    private func setUpAppFeatures() {
+        engine.onStillRendered = { [weak self] jpeg, _, track, templateID in
+            guard let self, !self.engine.focus else { return }  // no history while lyrics are hidden
+            self.history.record(jpeg, track: track, templateID: templateID,
+                                colors: self.engine.statePayload(for: nil)["colors"] as? [String: Any] ?? [:])
+        }
+        history.onChange = { [weak self] in self?.home?.historyChanged() }
+        focusMonitor.onChange = { [weak self] _ in self?.updateFocus() }
+        if hideLyricsWhileSharing { focusMonitor.start() }
+        installer.onInstalled = { [weak self] id in
+            guard let self else { return }
+            self.openHome()
+            self.home?.showTemplate(id)
+        }
+        // Home: thumbnails for every template, and refresh when a screen's template changes from anywhere
+        let thumbs = self.thumbs
+        engine.schemeHandler.thumbnail = { id in await thumbs.image(for: id) }
+        let previousActiveChanged = store.onActiveChanged
+        store.onActiveChanged = { [weak self] in previousActiveChanged?(); self?.home?.activeChanged() }
+        HotKeys.shared.register(kVK_ANSI_L) { [weak self] in self?.shareCard.share() }
+        HotKeys.shared.register(kVK_ANSI_F) { [weak self] in self?.toggleFocusMode() }
+        HotKeys.shared.register(kVK_ANSI_W) { [weak self] in self?.toggleQuickSwitcher() }
+    }
+
+    /// Double-clicked .swtemplate files and spotify-wallpaper://install?url=… links.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        if pendingOpen != nil { pendingOpen?.append(contentsOf: urls) } else { urls.forEach { installer.open($0) } }
+    }
+
+    private var hideLyricsWhileSharing: Bool {
+        get { UserDefaults.standard.object(forKey: "hideLyricsWhileSharing") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "hideLyricsWhileSharing") }
+    }
+
+    private func updateFocus() {
+        engine.focus = manualFocus || (hideLyricsWhileSharing && focusMonitor.sharing)
+    }
+
+    @objc private func toggleFocusMode() {
+        manualFocus.toggle()
+        updateFocus()
+        HUD.show(title: manualFocus ? "Focus Mode on" : "Focus Mode off",
+                 detail: manualFocus ? "Lyrics are hidden until you turn it off (⌃⌥⌘F)." : nil)
+    }
+
+    @objc private func toggleHideWhileSharing() {
+        hideLyricsWhileSharing.toggle()
+        if hideLyricsWhileSharing { focusMonitor.start() } else { focusMonitor.stop() }
+        updateFocus()
+    }
+
+    @objc private func requestScreenRecording() {
+        if !CGRequestScreenCaptureAccess() {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+        }
+    }
+
+    @objc private func shareLyricCard() { shareCard.share() }
+
+    @objc private func openHistory() {
+        openHome()
+        home?.show(tab: "history")
+    }
+
+    @objc private func clearHistory() {
+        history.load()
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Clear your wallpaper history?"
+        alert.informativeText = "This deletes all \(history.entries.count) saved wallpapers from the History Wall. It can't be undone."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Clear History")
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons.first?.hasDestructiveAction = true
+        if alert.runModal() == .alertFirstButtonReturn { history.clear() }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -65,64 +159,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // Re-opening the app from Finder/Spotlight while it's running opens the Customize window.
+    // Re-opening the app from Finder/Spotlight/the Dock while it's running opens Home.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        openSettings()
+        openHome()
         return false
     }
 
     // MARK: menu
 
+    /// Everyday actions only; everything app-wide is in Home's Settings tab.
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let playing = NSMenuItem(title: engine.nowPlayingText, action: nil, keyEquivalent: "")
         playing.isEnabled = false
         menu.addItem(playing)
+        if hideLyricsWhileSharing && focusMonitor.sharing {
+            let note = NSMenuItem(title: "Lyrics hidden: \(focusMonitor.reason) is sharing your screen", action: nil, keyEquivalent: "")
+            note.isEnabled = false
+            menu.addItem(note)
+        }
         menu.addItem(.separator())
 
-        let templates = NSMenuItem(title: "Template", action: nil, keyEquivalent: "")
-        let sub = NSMenu()
-        for t in store.templates {
-            let item = NSMenuItem(title: t.name, action: #selector(pickTemplate(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = t.id
-            item.state = t.id == store.activeID ? .on : .off
-            sub.addItem(item)
-        }
-        templates.submenu = sub
-        menu.addItem(templates)
-        add(menu, "Customize…", #selector(openSettings), ",")
-        add(menu, "Template Builder…", #selector(newBuilderTemplate), "")
-        menu.addItem(lyricsMenu())
-
-        let rate = NSMenuItem(title: "Refresh Rate", action: nil, keyEquivalent: "")
-        let rates = NSMenu()
-        for fps in Engine.refreshRates {
-            let item = NSMenuItem(title: fps == 0 ? "Display Maximum" : "\(fps) fps", action: #selector(pickRefreshRate(_:)), keyEquivalent: "")
-            item.target = self
-            item.tag = fps
-            item.state = engine.refreshRate == fps ? .on : .off
-            rates.addItem(item)
-        }
-        rates.addItem(.separator())
-        let note = NSMenuItem(title: "Lower rates save battery. Lyric timing stays exact.", action: nil, keyEquivalent: "")
-        note.isEnabled = false
-        rates.addItem(note)
-        rate.submenu = rates
-        menu.addItem(rate)
+        let ctrlOptCmd: NSEvent.ModifierFlags = [.control, .option, .command]
+        add(menu, "Open Spotify Wallpaper…", #selector(openHome), "o")
+        add(menu, "Quick Switcher…", #selector(toggleQuickSwitcher), "w").keyEquivalentModifierMask = ctrlOptCmd
+        menu.addItem(.separator())
+        let share = add(menu, "Share Lyric Card", #selector(shareLyricCard), "l")
+        share.keyEquivalentModifierMask = ctrlOptCmd
+        share.isEnabled = engine.track != nil
+        let focus = add(menu, "Focus Mode", #selector(toggleFocusMode), "f")
+        focus.keyEquivalentModifierMask = ctrlOptCmd
+        focus.state = manualFocus ? .on : .off
         add(menu, engine.paused ? "Resume Wallpaper" : "Pause Wallpaper", #selector(togglePause), "")
         menu.addItem(.separator())
-        add(menu, "Open Templates Folder", #selector(openTemplatesFolder), "")
-        menu.addItem(.separator())
-        let version = NSMenuItem(title: updater.status ?? "Spotify Wallpaper \(updater.currentVersion)", action: nil, keyEquivalent: "")
-        version.isEnabled = false
-        menu.addItem(version)
-        add(menu, "What's New…", #selector(openWhatsNew), "")
-        add(menu, "Check for Updates…", #selector(checkForUpdates), "")
-        add(menu, "Automatically Install Updates", #selector(toggleAutoUpdate), "").state = updater.automatic ? .on : .off
-        add(menu, "Launch at Login", #selector(toggleLaunchAtLogin), "").state =
-            SMAppService.mainApp.status == .enabled ? .on : .off
-        menu.addItem(.separator())
+        if let status = updater.status {
+            let note = NSMenuItem(title: status, action: nil, keyEquivalent: "")
+            note.isEnabled = false
+            menu.addItem(note)
+        }
+        add(menu, "Settings…", #selector(openSettingsTab), ",")
         add(menu, "Quit Spotify Wallpaper", #selector(quit), "q")
     }
 
@@ -134,13 +209,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return item
     }
 
-    @objc private func pickTemplate(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String else { return }
-        store.activeID = id
-        engine.invalidate()
-        settings?.sendInit()
-    }
-
     @objc private func openWhatsNew() {
         if whatsNew == nil { whatsNew = WhatsNewWindowController(engine: engine) }
         whatsNew?.show()
@@ -148,78 +216,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func checkForUpdates() { Task { await updater.check(userInitiated: true) } }
 
-    @objc private func toggleAutoUpdate() {
-        updater.automatic.toggle()
-        if updater.automatic { Task { await updater.check(userInitiated: false) } }
+    @objc private func openLyricsTab() {
+        openHome()
+        home?.show(tab: "lyrics")
     }
 
-    @objc private func pickRefreshRate(_ sender: NSMenuItem) { engine.refreshRate = sender.tag }
-
-    private func lyricsMenu() -> NSMenuItem {
-        let item = NSMenuItem(title: "Lyrics", action: nil, keyEquivalent: "")
-        let sub = NSMenu()
-        let sources = engine.lyricsSources
-        let info = NSMenuItem(title: engine.track == nil ? "Nothing playing"
-                                : engine.lyricsSourceText.isEmpty ? "No lyrics found" : "From \(engine.lyricsSourceText)",
-                              action: nil, keyEquivalent: "")
-        info.isEnabled = false
-        sub.addItem(info)
-        sub.addItem(.separator())
-
-        let synced = sources.filter(\.synced).count
-        var choices = [("Combined", synced > 1 ? "Combined timing (\(synced) sources)" : "Best available")]
-        choices += sources.map { ($0.name, $0.synced ? $0.name : "\($0.name) (unsynced)") }
-        for (value, title) in choices {
-            let c = NSMenuItem(title: title, action: #selector(pickLyricsSource(_:)), keyEquivalent: "")
-            c.target = self
-            c.representedObject = value
-            c.state = engine.lyricsChoice == value ? .on : .off
-            c.isEnabled = !sources.isEmpty
-            sub.addItem(c)
+    /// Home: the app's main window (it replaced Customize).
+    @objc private func openHome() {
+        if home == nil {
+            home = HomeWindowController(engine: engine, store: store, paths: paths, thumbs: thumbs, history: history)
+            home?.onOpenBuilder = { [weak self] id in self?.openBuilder(id) }
+            home?.onShareCard = { [weak self] in self?.shareCard.share() }
+            home?.installer = installer
+            home?.settings = { [weak self] in self?.settingsSnapshot() ?? [:] }
+            home?.onSetting = { [weak self] key, value in self?.applySetting(key, value) }
+            home?.onSettingAction = { [weak self] action in self?.settingAction(action) }
+            updater.onStatusChange = { [weak self] in self?.home?.pushState() }
         }
-        sub.addItem(.separator())
-
-        let offset = engine.lyricsOffset
-        for (title, delta) in [("Show Lines Earlier (−0.25 s)", -0.25), ("Show Lines Later (+0.25 s)", 0.25)] {
-            let n = NSMenuItem(title: title, action: #selector(nudgeLyrics(_:)), keyEquivalent: "")
-            n.target = self
-            n.representedObject = delta
-            n.isEnabled = !sources.isEmpty
-            sub.addItem(n)
-        }
-        let reset = NSMenuItem(title: offset == 0 ? "Timing: as published" : String(format: "Reset Timing (now %+.2f s)", offset),
-                               action: offset == 0 ? nil : #selector(resetLyricsTiming), keyEquivalent: "")
-        reset.target = self
-        reset.isEnabled = offset != 0
-        sub.addItem(reset)
-        sub.addItem(.separator())
-        let refetch = NSMenuItem(title: "Search Again", action: #selector(refetchLyrics), keyEquivalent: "")
-        refetch.target = self
-        refetch.isEnabled = engine.track != nil
-        sub.addItem(refetch)
-
-        item.submenu = sub
-        return item
-    }
-
-    @objc private func pickLyricsSource(_ sender: NSMenuItem) {
-        if let v = sender.representedObject as? String { engine.lyricsChoice = v }
-    }
-
-    @objc private func nudgeLyrics(_ sender: NSMenuItem) {
-        if let d = sender.representedObject as? Double { engine.lyricsOffset = (engine.lyricsOffset + d).rounded(toPlaces: 2) }
-    }
-
-    @objc private func resetLyricsTiming() { engine.lyricsOffset = 0 }
-
-    @objc private func refetchLyrics() { engine.refetchLyrics() }
-
-    @objc private func openSettings() {
-        if settings == nil {
-            settings = SettingsWindowController(engine: engine, store: store, paths: paths)
-            settings?.onOpenBuilder = { [weak self] id in self?.openBuilder(id) }
-        }
-        settings?.show()
+        home?.show()
     }
 
     @objc private func newBuilderTemplate() { openBuilder(nil) }
@@ -232,7 +246,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         builder?.close()
         builder = BuilderWindowController(engine: engine, store: store, templateID: id)
-        builder?.onSaved = { [weak self] in self?.settings?.sendInit() }
+        builder?.onSaved = { [weak self] in self?.home?.sendInit() }
         builder?.show()
     }
 
@@ -278,5 +292,90 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         editItem.submenu = edit
         main.addItem(editItem)
         NSApp.mainMenu = main
+    }
+}
+
+// MARK: - Quick Switcher (⌃⌥⌘W)
+
+extension AppDelegate {
+    @objc fileprivate func toggleQuickSwitcher() {
+        if quickSwitcher == nil {
+            let qs = QuickSwitcher(engine: engine, store: store)
+            qs.onShareCard = { [weak self] in self?.shareCard.share() }
+            qs.onToggleFocus = { [weak self] in self?.toggleFocusMode() }
+            qs.isFocusOn = { [weak self] in self?.manualFocus ?? false }
+            qs.onOpenHistory = { [weak self] in self?.openHistory() }
+            // Home (other stream) replaces this: open the main window on that template
+            qs.onOpenHome = { [weak self] id in
+                self?.openHome()
+                if let id { self?.home?.showTemplate(id) }
+            }
+            quickSwitcher = qs
+        }
+        quickSwitcher?.toggle()
+    }
+}
+
+// MARK: - Settings (Home's Settings tab)
+
+extension AppDelegate {
+    @objc fileprivate func openSettingsTab() {
+        openHome()
+        home?.show(tab: "settings")
+    }
+
+    fileprivate func settingsSnapshot() -> [String: Any] {
+        [
+            "launchAtLogin": SMAppService.mainApp.status == .enabled,
+            "paused": engine.paused,
+            "refreshRate": engine.refreshRate,
+            "focus": manualFocus,
+            "hideWhileSharing": hideLyricsWhileSharing,
+            "canReadTitles": FocusMonitor.canReadTitles,
+            "sharingNow": focusMonitor.sharing ? focusMonitor.reason : "",
+            "useWeather": engine.useWeather,
+            "beatSync": engine.beatSync,
+            "shareFormat": shareCard.format.rawValue,
+            "keepHistory": history.enabled,
+            "historyCount": history.entries.count,
+            "autoUpdate": updater.automatic,
+            "version": updater.currentVersion,
+            "updateStatus": updater.status ?? "",
+        ]
+    }
+
+    fileprivate func applySetting(_ key: String, _ value: Any?) {
+        let on = value as? Bool ?? false
+        switch key {
+        case "launchAtLogin": if on != (SMAppService.mainApp.status == .enabled) { toggleLaunchAtLogin() }
+        case "paused": engine.paused = on
+        case "refreshRate": if let n = (value as? NSNumber)?.intValue { engine.refreshRate = n }
+        case "focus": if on != manualFocus { toggleFocusMode() }
+        case "hideWhileSharing": if on != hideLyricsWhileSharing { toggleHideWhileSharing() }
+        case "useWeather": engine.useWeather = on
+        case "beatSync": engine.beatSync = on
+        case "shareFormat": if let raw = value as? String, let f = ShareCard.Format(rawValue: raw) { shareCard.format = f }
+        case "keepHistory": history.enabled = on
+        case "autoUpdate":
+            updater.automatic = on
+            if on { Task { await updater.check(userInitiated: false) } }
+        default: break
+        }
+        home?.pushState()
+    }
+
+    fileprivate func settingAction(_ action: String) {
+        switch action {
+        case "requestScreenRecording": requestScreenRecording()
+        case "share": shareLyricCard()
+        case "openHistory": openHistory()
+        case "clearHistory": clearHistory()
+        case "openTemplatesFolder": openTemplatesFolder()
+        case "openBuilder": newBuilderTemplate()
+        case "checkUpdates": checkForUpdates()
+        case "whatsNew": openWhatsNew()
+        default: break
+        }
+        home?.pushState()
     }
 }

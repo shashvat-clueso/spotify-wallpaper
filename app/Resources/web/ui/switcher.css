@@ -1,0 +1,101 @@
+/* Quick Switcher (⌃⌥⌘W): the app's frosted dark panel. In the app the window is transparent and a native
+   vibrancy view sits behind this page, so the sheet only tints it; the backdrop-filter matters in previews. */
+
+:root {
+  --ink: #f2f1ee;
+  --ink-2: rgb(255 255 255 / 0.6);
+  --ink-3: rgb(255 255 255 / 0.42);
+  --line: rgb(255 255 255 / 0.1);
+  --hover: rgb(255 255 255 / 0.07);
+  --sel: rgb(255 255 255 / 0.13);
+  --focus: #8f97ff;
+  --green: #1ed760;
+  --r: 16px;            /* the window's corner */
+  --pad: 8px;           /* list inset: rows use r - pad so the corners nest */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: transparent; overflow: hidden; }
+body { font: 13px/1.35 var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; -webkit-user-select: none; user-select: none; cursor: default; }
+[hidden] { display: none !important; }
+
+.sheet {
+  height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; border-radius: var(--r); overflow: hidden;
+  background: rgb(22 22 28 / 0.62); backdrop-filter: blur(40px) saturate(1.4); -webkit-backdrop-filter: blur(40px) saturate(1.4);
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.16);
+}
+
+/* ---------- search ---------- */
+.q { display: flex; align-items: center; gap: 11px; height: 54px; padding: 0 18px; border-bottom: 1px solid var(--line); }
+.q .glass { width: 17px; height: 17px; color: var(--ink-3); flex: none; }
+.q input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font: 400 18px/1 var(--font);
+  caret-color: var(--focus); letter-spacing: -0.01em; }
+.q input::placeholder { color: var(--ink-3); }
+
+/* ---------- list ---------- */
+.body { display: grid; grid-template-columns: minmax(0, 1fr) 232px; min-height: 0; }
+.list { overflow-y: auto; padding: 6px var(--pad) 10px; scrollbar-width: thin; scroll-padding: 30px 0 10px; }
+.list::-webkit-scrollbar { width: 0; }
+.lbl { font: 500 10.5px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); padding: 12px 8px 6px; }
+.lbl:first-child { padding-top: 8px; }
+
+.row { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 11px; align-items: center; height: 46px; padding: 0 8px 0 6px;
+  border-radius: calc(var(--r) - var(--pad)); outline: none; }
+.row.on { background: var(--sel); }
+.row .nm { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .sub { color: var(--ink-3); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.row .sub b { font-weight: 500; color: var(--green); }
+.row .end { display: flex; align-items: center; gap: 8px; font: 11px var(--mono); color: var(--ink-3); }
+.row .end .ret { opacity: 0; transition: opacity 0.12s; }
+.row.on .end .ret { opacity: 1; color: var(--ink-2); }
+.row .star { color: #f5c451; font-size: 11px; }
+.row.off { opacity: 0.45; }
+
+/* a template's picture: the category tile with the cover, and the rendered thumbnail on top once it loads */
+.th { position: relative; aspect-ratio: 16 / 10; border-radius: 5px; overflow: hidden; background: var(--c, #444);
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.14); container-type: inline-size; }
+.th .cv { position: absolute; top: 50%; left: 50%; height: 62%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 6%;
+  background: var(--cover) center / cover, rgb(0 0 0 / 0.25); box-shadow: 0 1.5cqw 4cqw rgb(0 0 0 / 0.35); }
+.th .wash { position: absolute; inset: 0; background: radial-gradient(120% 90% at 20% 0%, rgb(255 255 255 / 0.18), transparent 60%); }
+.th .lt { position: absolute; left: 6cqw; bottom: 5cqw; font: 600 7cqw/1 var(--font); color: rgb(255 255 255 / 0.85); letter-spacing: -0.01em; }
+.th.paper .lt { color: rgb(30 26 20 / 0.75); }
+.th img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.35s; }
+.th img.ok { opacity: 1; }
+.row .th .lt { display: none; }
+
+.ic { width: 56px; height: 35px; border-radius: 5px; display: grid; place-items: center; background: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.1); color: var(--ink-2); }
+.ic svg { width: 17px; height: 17px; }
+
+.empty { padding: 40px 16px; text-align: center; color: var(--ink-3); }
+
+/* ---------- preview ---------- */
+.prev { border-left: 1px solid var(--line); padding: 14px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+.prev .th { border-radius: calc(var(--r) - 6px); }
+.prev .bigic { aspect-ratio: 16 / 10; border-radius: calc(var(--r) - 6px); display: grid; place-items: center; background: rgb(255 255 255 / 0.06);
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.1); color: var(--ink-2); }
+.prev .bigic svg { width: 34px; height: 34px; }
+.prev h4 { margin: 0; font: 600 15px/1.25 var(--font); letter-spacing: -0.01em; }
+.prev .cat { display: flex; gap: 6px; align-items: center; margin-top: 4px; font-size: 11.5px; color: var(--ink-3); }
+.prev .cat i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.prev p { margin: 0; color: var(--ink-2); font-size: 12px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.screens { display: grid; gap: 5px; margin-top: auto; }
+.screens .lbl { padding: 0 0 3px; }
+.scr { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--ink-3); }
+.scr svg { width: 14px; height: 14px; flex: none; }
+.scr.use { color: var(--ink); }
+.scr.use svg { color: var(--green); }
+.scr .here { margin-left: auto; font: 10px var(--mono); color: var(--ink-3); }
+
+/* ---------- footer ---------- */
+.foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; height: 32px; padding: 0 16px; border-top: 1px solid var(--line);
+  font: 11px var(--mono); color: var(--ink-3); white-space: nowrap; }
+.foot #hints { overflow: hidden; text-overflow: ellipsis; }
+.foot kbd { font: inherit; color: var(--ink-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .th img, .row .end .ret { transition: none; }
+}

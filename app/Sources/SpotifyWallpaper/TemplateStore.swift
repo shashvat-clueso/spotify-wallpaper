@@ -1,3 +1,5 @@
+import ColorSync
+import CoreGraphics
 import Foundation
 
 struct WallpaperTemplate {
@@ -15,7 +17,8 @@ struct WallpaperTemplate {
     var isBuilder: Bool { manifest["builder"] as? Bool ?? false }
 
     var summary: [String: Any] {
-        ["id": id, "name": name, "description": description, "builtin": builtin, "builder": isBuilder, "params": params]
+        ["id": id, "name": name, "description": description, "builtin": builtin, "builder": isBuilder, "params": params,
+         "category": TemplateStore.categoryName(self)]
     }
 }
 
@@ -25,11 +28,22 @@ struct WallpaperTemplate {
 final class TemplateStore {
     private(set) var templates: [WallpaperTemplate] = []
     private let paths: Paths
-    private let defaults = UserDefaults.standard
-    private static let builtinOrder = ["card", "poster", "minimal", "glow", "vinyl", "typewriter", "lockscreen", "visualizer", "brushwork", "painted-cover", "painted-cover-wide"]
+    private let defaults: UserDefaults
+    private static let builtinOrder = ["card", "poster", "minimal", "glow", "vinyl", "typewriter", "lockscreen", "visualizer", "brushwork", "painted-cover", "painted-cover-wide", "cassette", "liner-notes", "weather", "departure-board", "riso", "swiss-grid", "hardware-panel", "film-strip", "albers", "breathing-type", "receipt"]
 
-    init(paths: Paths) {
+    /// Fires after any `setActive` (all screens or one), i.e. whenever what a screen shows may have changed.
+    var onActiveChanged: (() -> Void)?
+    /// Posted alongside `onActiveChanged`, for observers that shouldn't take the single closure (the Engine).
+    static let activeChangedNotification = Notification.Name("TemplateStore.activeChanged")
+
+    /// Maps a display to a string that survives reconnects and reboots (its UUID). Replaceable for tests.
+    var displayUUID: (CGDirectDisplayID) -> String? = TemplateStore.uuidString(for:)
+    /// The displays that are connected right now. Replaceable for tests.
+    var onlineDisplays: () -> [CGDirectDisplayID] = TemplateStore.onlineDisplayIDs
+
+    init(paths: Paths, defaults: UserDefaults = .standard) {
         self.paths = paths
+        self.defaults = defaults
         installGuide()
         reload()
     }
@@ -52,15 +66,110 @@ final class TemplateStore {
 
     func template(_ id: String) -> WallpaperTemplate? { templates.first { $0.id == id } }
 
+    /// The template every screen shows unless it has its own (see `displayOverrides`).
+    /// Setting it means "use this as the wallpaper": same as `setActive(id, display: nil)`.
     var activeID: String {
         get {
             let saved = defaults.string(forKey: "activeTemplate") ?? "card"
             return template(saved) != nil ? saved : (templates.first?.id ?? "card")
         }
-        set { defaults.set(newValue, forKey: "activeTemplate") }
+        set { setActive(newValue, display: nil) }
     }
 
     var active: WallpaperTemplate? { template(activeID) }
+
+    // MARK: per-display templates, recents, favourites
+
+    private static let overridesKey = "displayTemplates"  // [display UUID: template id]
+    private static let recentsKey = "recentTemplates"
+    private static let favoritesKey = "favoriteTemplates"
+    static let maxRecents = 12
+
+    /// What `display` shows: its own template if it has one (and it still exists), else `activeID`.
+    func activeID(for display: CGDirectDisplayID) -> String {
+        displayOverrides[display] ?? activeID
+    }
+
+    /// `display == nil`: every screen shows `id` and per-screen choices are cleared.
+    /// Otherwise only that screen changes; picking the default for it just drops its override.
+    func setActive(_ id: String, display: CGDirectDisplayID?) {
+        var saved = savedOverrides
+        if let display {
+            guard let uuid = displayUUID(display) else { return }
+            saved[uuid] = id == activeID ? nil : id
+        } else {
+            defaults.set(id, forKey: "activeTemplate")
+            saved = [:]
+        }
+        defaults.set(saved, forKey: Self.overridesKey)
+        noteRecent(id)
+        onActiveChanged?()
+        NotificationCenter.default.post(name: Self.activeChangedNotification, object: self)
+    }
+
+    /// Screens (connected now) that show something other than the default, with templates that still exist.
+    var displayOverrides: [CGDirectDisplayID: String] {
+        let saved = savedOverrides
+        guard !saved.isEmpty else { return [:] }
+        var out: [CGDirectDisplayID: String] = [:]
+        for display in onlineDisplays() {
+            if let uuid = displayUUID(display), let id = saved[uuid], template(id) != nil { out[display] = id }
+        }
+        return out
+    }
+
+    private var savedOverrides: [String: String] {
+        defaults.dictionary(forKey: Self.overridesKey) as? [String: String] ?? [:]
+    }
+
+    /// Most recently applied first; templates that were deleted are skipped.
+    var recentIDs: [String] {
+        (defaults.stringArray(forKey: Self.recentsKey) ?? []).filter { template($0) != nil }
+    }
+
+    private func noteRecent(_ id: String) {
+        var list = (defaults.stringArray(forKey: Self.recentsKey) ?? []).filter { $0 != id }
+        list.insert(id, at: 0)
+        defaults.set(Array(list.prefix(Self.maxRecents)), forKey: Self.recentsKey)
+    }
+
+    var favoriteIDs: Set<String> {
+        Set((defaults.stringArray(forKey: Self.favoritesKey) ?? []).filter { template($0) != nil })
+    }
+
+    func setFavorite(_ id: String, _ on: Bool) {
+        var list = (defaults.stringArray(forKey: Self.favoritesKey) ?? []).filter { $0 != id }
+        if on { list.append(id) }
+        defaults.set(list, forKey: Self.favoritesKey)
+    }
+
+    /// Display names for the manifest's optional `"category"`, in gallery order (plus "Yours").
+    nonisolated static let categoryNames = ["lyrics": "Lyrics", "painting": "Painting", "print": "Print & paper", "objects": "Objects", "calm": "Calm"]
+    nonisolated static let categoryOrder = ["Lyrics", "Painting", "Print & paper", "Objects", "Calm", "Yours"]
+
+    /// The manifest's category, else "Yours" for user templates and "Lyrics" for built-ins.
+    func category(_ id: String) -> String {
+        guard let t = template(id) else { return "Yours" }
+        return Self.categoryName(t)
+    }
+
+    nonisolated static func categoryName(_ t: WallpaperTemplate) -> String {
+        if let raw = t.manifest["category"] as? String, let name = categoryNames[raw.lowercased()] { return name }
+        return t.builtin ? "Lyrics" : "Yours"
+    }
+
+    nonisolated static func uuidString(for display: CGDirectDisplayID) -> String? {
+        guard let uuid = CGDisplayCreateUUIDFromDisplayID(display)?.takeRetainedValue() else { return nil }
+        return CFUUIDCreateString(nil, uuid) as String?
+    }
+
+    nonisolated static func onlineDisplayIDs() -> [CGDirectDisplayID] {
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetOnlineDisplayList(count, &ids, &count) == .success else { return [] }
+        return Array(ids.prefix(Int(count)))
+    }
 
     // MARK: parameter values
 

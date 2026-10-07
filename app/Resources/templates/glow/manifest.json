@@ -2,6 +2,7 @@
   "name": "Glow",
   "description": "Full-screen lyrics on a soft color gradient made from the cover, Apple Music style.",
   "author": "Built-in",
+  "category": "lyrics",
   "params": [
     {
       "key": "font",
@@ -79,6 +80,18 @@
       "key": "karaoke",
       "type": "bool",
       "label": "Karaoke fill",
+      "default": true
+    },
+    {
+      "key": "duet",
+      "type": "bool",
+      "label": "Duet layout",
+      "default": true
+    },
+    {
+      "key": "translations",
+      "type": "bool",
+      "label": "Show translations",
       "default": true
     },
     {

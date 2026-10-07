@@ -30,6 +30,20 @@ lyrics-block:not([data-layout="flow"]) .line.out { visibility: hidden; }
 
 fit-text { overflow: hidden; overflow-wrap: break-word; }
 
+/* beat sync: --beat is a 0–1 pulse after each onset, --level the loudness (live layer, only when the app sends beats) */
+:root { --beat: 0; --level: 0; }
+
+/* translations (<lyrics-block translations>): each line's translation sits under it, smaller and dimmer */
+lyrics-block .tr { display: block; font-size: 0.6em; line-height: 1.25; margin-top: 0.3em; opacity: 0.62; letter-spacing: 0; }
+
+/* duets (<lyrics-block duet>, only while the song is a duet): voice A on the left, B on the right, both centered */
+.sw-duet lyrics-block[duet]:not([duet="false"]) .line[data-singer="A"] { text-align: left; }
+.sw-duet lyrics-block[duet]:not([duet="false"]) .line[data-singer="B"] { text-align: right; }
+.sw-duet lyrics-block[duet]:not([duet="false"]) .line[data-singer="both"] { text-align: center; }
+
+/* focus (screen sharing / focus mode): lyrics hide; templates can show something else under .sw-focus */
+.sw-focus :is(lyrics-block, [data-lyrics]) { visibility: hidden; opacity: 0; }
+
 swatch-row { display: flex; gap: 0.8vmin; }
 swatch-row .swatch { flex: 1; min-width: 0; }
 swatch-row .chip { height: 5vmin; }
@@ -64,6 +78,8 @@ progress-bar .fill { position: absolute; inset: 0; background: currentColor; bor
 .sw-live lyrics-block[data-layout="flow"] .line.current { animation: sw-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
 .sw-live .sw-enter { animation: sw-enter 0.7s cubic-bezier(0.22, 1, 0.36, 1); }
 .sw-live img { transition: opacity 0.4s ease; }
+/* zero specificity, so a template's own transitions on these elements still win */
+:where(.sw-live) :where(lyrics-block, [data-lyrics]) { transition: opacity 0.6s ease, visibility 0.6s; }
 
 @keyframes sw-rise { from { transform: translateY(0.4em); opacity: 0.4; } }
 @keyframes sw-enter { from { opacity: 0; transform: translateY(0.5em); filter: blur(6px); } }

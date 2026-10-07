@@ -2,6 +2,7 @@
   "name": "Brushwork",
   "description": "A living oil painting made from the cover with p5.js brushes: a swirling night, a jungle, ink and gold, or a paisley tapestry. The title, artist and lyrics sit on a painted panel, and every new line adds something to the picture.",
   "author": "Built-in",
+  "category": "painting",
   "params": [
     { "key": "style", "type": "select", "label": "Painting", "default": "night",
       "options": [

@@ -4,6 +4,21 @@
 <dict>
 	<key>CFBundleDisplayName</key>
 	<string>Spotify Wallpaper</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Spotify Wallpaper Template</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.shashvat.spotifywallpaper.template</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>SpotifyWallpaper</string>
 	<key>CFBundleIconFile</key>
@@ -15,7 +30,18 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.4.0</string>
+	<string>1.5.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.shashvat.spotifywallpaper.install</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>spotify-wallpaper</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>9</string>
 	<key>LSMinimumSystemVersion</key>
@@ -26,5 +52,32 @@
 	<string>Spotify Wallpaper reads what's playing in Spotify so it can draw the song onto your wallpaper.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSLocationUsageDescription</key>
+	<string>Spotify Wallpaper uses your approximate location to show the local weather and daylight on your wallpaper.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Spotify Wallpaper uses your approximate location to show the local weather and daylight on your wallpaper.</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Spotify Wallpaper Template</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.shashvat.spotifywallpaper.template</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>swtemplate</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/x-swtemplate</string>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>

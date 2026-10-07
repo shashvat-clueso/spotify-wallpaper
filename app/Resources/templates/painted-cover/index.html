@@ -9,7 +9,7 @@
 <script src="/runtime/cover-painter.js"></script>
 <style>
   body { background: var(--param-field); color: var(--param-ink); font-family: var(--param-font); overflow: hidden; }
-  canvas.paint { position: fixed; inset: 0; width: 100vw !important; height: 100vh !important; z-index: 0; }
+  canvas.paint { position: fixed; inset: 0; width: 100vw !important; height: 100vh !important; z-index: 1; }
 
   /* the painting is a square of min(84vh, 52vw) on the far side, 6vw from the edge (cover-painter.js) */
   .col {
@@ -29,11 +29,13 @@
   lyrics-block { height: 34vh; width: 100%; -webkit-mask-image: linear-gradient(to bottom, #000 74%, transparent); }
   lyrics-block .line { font-size: calc(var(--param-lyricSize) * 0.58); font-weight: 400; line-height: 1.22; letter-spacing: -0.005em;
     margin-bottom: 1.5vmin; opacity: calc(0.72 - var(--dist) * 0.12); }
+  lyrics-block .tr { display: block; font-size: 0.5em; font-weight: 400; letter-spacing: 0; opacity: 0.7; }
   lyrics-block .past { opacity: 0.38; }
   lyrics-block .current { font-size: var(--param-lyricSize); font-weight: 700; letter-spacing: -0.025em; line-height: 1.08; opacity: 1; }
   .sw-live lyrics-block .lines { transition-duration: 0.7s; transition-timing-function: cubic-bezier(.3, .1, .2, 1); }
   .empty { font-size: 2.6vmin; font-weight: 500; opacity: 0.6; }
-  .sw-grain { opacity: 0.12; z-index: 3; }
+  /* grain on the background only: it sits under the canvas, so the painting covers it */
+  .sw-grain { position: fixed; opacity: 0.12; z-index: 0; }
 </style>
 </head>
 <body>
@@ -41,7 +43,7 @@
     <fit-text class="title" max-lines="3" min="5vmin" max="13vmin" data-bind="track.title"></fit-text>
     <div class="artist" data-bind="track.artist"></div>
     <div class="meta"><span data-bind="track.elapsed"></span><progress-bar></progress-bar><span data-bind="track.length"></span></div>
-    <lyrics-block layout="top" data-attr-before="params.linesBefore" data-attr-after="params.linesAfter"></lyrics-block>
+    <lyrics-block layout="top" data-attr-translations="params.translations" data-attr-before="params.linesBefore" data-attr-after="params.linesAfter"></lyrics-block>
     <div class="empty" data-show="!lyrics.hasLyrics" data-bind="track.album"></div>
   </div>
   <div class="sw-grain" data-show="params.grain"></div>

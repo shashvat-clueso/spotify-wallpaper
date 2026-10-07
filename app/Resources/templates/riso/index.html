@@ -1,0 +1,259 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  /* Two plates on one sheet. Everything in the blue plate sits in .plate.blue, everything pink in .plate.pink; the pink
+     plate is the one that slips out of register on each new line. Both print with multiply, like ink on paper. */
+  :root { --s: 84vh; --m: 5vmin; --x: 0px; --y: 0px; --r: 0deg; }
+  body { background: var(--param-paper); color: var(--param-blue); }
+  .sheet { position: absolute; inset: 0; isolation: isolate; }
+  /* the paper: a little light falling off at the edges and a soft tooth */
+  .sheet::before { content: ""; position: absolute; inset: 0;
+    background: radial-gradient(ellipse 90% 80% at 45% 40%, transparent 55%, rgba(80, 60, 30, 0.08)); }
+  .plate { position: absolute; inset: 0; mix-blend-mode: multiply; }
+  .plate.pink { transform: translate(var(--x), var(--y)) rotate(var(--r)); transform-origin: 60% 50%; }
+  .sw-live .plate.pink { transition: transform 0.9s cubic-bezier(0.3, 0.7, 0.2, 1); }
+  canvas.halftone { position: absolute; }
+  .sw-grain { opacity: 0.1; mix-blend-mode: multiply; }
+
+  .title { position: absolute; left: var(--m); top: calc(var(--m) * 0.8); width: var(--titleW, 56vw); height: var(--titleH, 64vh);
+    color: var(--param-blue); font: 900 10vmin / 0.84 "SF Var", -apple-system, "Helvetica Neue", sans-serif; font-stretch: 58%;
+    text-transform: uppercase; letter-spacing: -0.012em; }
+  .title fit-text { width: 100%; line-height: 0.84; }
+
+  .lyric { position: absolute; left: var(--m); bottom: calc(var(--m) * 1.1); width: var(--lyricW, 46vw); color: var(--param-pink); }
+  .lyric fit-text { width: 100%; line-height: 1.02;
+    font: 800 4vmin / 1.02 "SF Var", -apple-system, sans-serif; font-stretch: 68%; text-transform: uppercase; letter-spacing: 0.005em; }
+  .lyric .k { font: 600 1.3vmin / 1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.22em; text-transform: uppercase; margin-bottom: 1.6vmin; }
+
+  .meta { position: absolute; right: var(--m); bottom: calc(var(--m) * 0.9); text-align: right; color: var(--param-blue);
+    font: 500 1.25vmin / 1.6 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.14em; text-transform: uppercase; max-width: 40vw; }
+  .meta div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* the press check strip: each ink alone, then both */
+  .swatch { position: absolute; width: 2.2vmin; height: 2.2vmin; }
+
+  .reg { position: absolute; width: 3vmin; height: 3vmin; margin: -1.5vmin 0 0 -1.5vmin; border: 0.16vmin solid currentColor; border-radius: 50%; }
+  .reg::before, .reg::after { content: ""; position: absolute; background: currentColor; }
+  .reg::before { left: 50%; top: -45%; bottom: -45%; width: 0.16vmin; margin-left: -0.08vmin; }
+  .reg::after { top: 50%; left: -45%; right: -45%; height: 0.16vmin; margin-top: -0.08vmin; }
+  .crop { position: absolute; background: currentColor; }
+
+  /* portrait: the print stacks, the picture on top */
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="plate blue">
+      <canvas class="halftone" id="blue"></canvas>
+      <div class="title"><!-- max-lines is one more than the rows wanted: at 0.84 line height the capitals overhang the last line box --><fit-text max-lines="3" min="4vmin" max="15vmin" id="title" data-bind="track.title"></fit-text></div>
+      <div class="meta">
+        <div id="inks"></div>
+        <div data-template="{{track.artist}} · {{track.album}}"></div>
+        <div id="run"></div>
+      </div>
+      <div id="blueMarks"></div>
+    </div>
+    <div class="plate pink" id="pinkPlate">
+      <canvas class="halftone" id="pink"></canvas>
+      <div class="lyric" data-lyrics>
+        <div class="k" id="kicker"></div>
+        <fit-text max-lines="4" min="2.2vmin" max="6vmin" id="line"></fit-text>
+      </div>
+      <div id="pinkMarks"></div>
+    </div>
+  </div>
+  <div class="sw-grain" data-show="params.grain"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const root = document.documentElement.style;
+    let px = null, pxFor = null, geo = null, drawnFor = null;
+
+    // ---------- layout: where the picture goes ----------
+    function geometry() {
+      const W = innerWidth, H = innerHeight, m = Math.min(W, H) * 0.05, portrait = W / H < 1;
+      let S, x, y;
+      if (portrait) { S = Math.min(W - m * 2, H * 0.5); x = (W - S) / 2; y = m * 1.6; }
+      else { S = Math.min(H * 0.78, W * 0.5); x = W - S - m * 1.6; y = (H - S) / 2 - m * 0.5; }
+      return { W, H, m, S, x, y, portrait };
+    }
+
+    function place(g) {
+      root.setProperty("--m", g.m + "px");
+      for (const c of [$("blue"), $("pink")]) {
+        const pad = g.m * 0.6;
+        Object.assign(c.style, { left: g.x - pad + "px", top: g.y - pad + "px", width: g.S + pad * 2 + "px", height: g.S + pad * 2 + "px" });
+      }
+      if (g.portrait) {
+        root.setProperty("--titleW", g.W - g.m * 2 + "px");
+        root.setProperty("--titleH", (g.H - (g.y + g.S) - g.m * 1.2) * 0.5 + "px");
+        document.querySelector(".title").style.top = g.y + g.S + g.m * 0.9 + "px";
+        root.setProperty("--lyricW", g.W - g.m * 2 + "px");
+      } else {
+        // the title runs into the picture and overprints it, the way a riso poster would
+        root.setProperty("--titleW", Math.min(g.x + g.S * 0.32 - g.m, g.W * 0.62) + "px");
+        root.setProperty("--titleH", g.H * 0.6 + "px");
+        document.querySelector(".title").style.top = g.m * 0.8 + "px";
+        root.setProperty("--lyricW", Math.max(g.W * 0.3, g.x - g.m * 2.6) + "px");
+      }
+      // registration marks and crop marks, once per plate (the pink set moves with its plate)
+      const marks = (where) => {
+        const pts = [[g.m * 0.75, g.m * 0.75], [g.W - g.m * 0.75, g.m * 0.75], [g.m * 0.75, g.H - g.m * 0.75], [g.W - g.m * 0.75, g.H - g.m * 0.75]];
+        let html = pts.map(([x, y]) => `<div class="reg" style="left:${x}px;top:${y}px"></div>`).join("");
+        const L = g.m * 0.7, t = Math.max(1, g.m * 0.03);
+        // crop marks at the picture's corners
+        for (const [cx, cy, sx, sy] of [[g.x, g.y, -1, -1], [g.x + g.S, g.y, 1, -1], [g.x, g.y + g.S, -1, 1], [g.x + g.S, g.y + g.S, 1, 1]]) {
+          html += `<div class="crop" style="left:${sx < 0 ? cx - L - g.m * 0.2 : cx + g.m * 0.2}px;top:${cy - t / 2}px;width:${L}px;height:${t}px"></div>`;
+          html += `<div class="crop" style="left:${cx - t / 2}px;top:${sy < 0 ? cy - L - g.m * 0.2 : cy + g.m * 0.2}px;width:${t}px;height:${L}px"></div>`;
+        }
+        $(where).innerHTML = html;
+      };
+      marks("blueMarks"); marks("pinkMarks");
+      $("pinkMarks").style.color = "var(--param-pink)";
+    }
+
+    // ---------- separation and halftone ----------
+    const hex = (h) => { h = String(h || "#000").replace("#", ""); if (h.length === 3) h = h.replace(/./g, "$&$&"); const n = parseInt(h, 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; };
+
+    async function loadCover(url) {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      const N = 220, c = document.createElement("canvas");
+      c.width = c.height = N;
+      const g = c.getContext("2d", { willReadFrequently: true });
+      // cover-fit a non-square cover
+      const s = Math.min(img.naturalWidth, img.naturalHeight);
+      g.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, N, N);
+      const d = g.getImageData(0, 0, N, N).data;
+      // auto-levels on luminance, so pale and murky covers still print with a full range of dots
+      const lum = [];
+      for (let i = 0; i < d.length; i += 4) lum.push(0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]);
+      const sorted = [...lum].sort((a, b) => a - b);
+      const lo = sorted[Math.floor(sorted.length * 0.02)], hi = sorted[Math.floor(sorted.length * 0.985)];
+      const span = Math.max(40, hi - lo), floor = Math.max(0, Math.min(lo, 255 - span));
+      const out = new Float32Array(N * N * 3);
+      for (let i = 0, k = 0; i < d.length; i += 4, k += 3) {
+        for (let c2 = 0; c2 < 3; c2++) out[k + c2] = Math.min(1, Math.max(0, (d[i + c2] - floor) / span));
+      }
+      return { N, rgb: out };
+    }
+
+    // Least squares in "absorbance": how much of each ink, laid over paper, gets closest to the pixel.
+    function separator(inkA, inkB) {
+      const a = inkA.map((v) => 1 - v), b = inkB.map((v) => 1 - v);
+      const aa = a[0] * a[0] + a[1] * a[1] + a[2] * a[2], bb = b[0] * b[0] + b[1] * b[1] + b[2] * b[2], ab = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+      const det = aa * bb - ab * ab || 1e-6;
+      return (r, g, bl) => {
+        const A = [1 - r, 1 - g, 1 - bl];
+        const pa = A[0] * a[0] + A[1] * a[1] + A[2] * a[2], pb = A[0] * b[0] + A[1] * b[1] + A[2] * b[2];
+        let da = (bb * pa - ab * pb) / det, db = (aa * pb - ab * pa) / det;
+        // deep shadows take both inks
+        const dark = Math.max(0, (A[0] + A[1] + A[2]) / 3 - 0.55) * 1.6;
+        return [Math.min(1, Math.max(0, da) + dark), Math.min(1, Math.max(0, db) + dark)];
+      };
+    }
+
+    let seed = 1;
+    const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+
+    function plate(canvas, ink, which, angle, sep, g, cells) {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const pad = g.m * 0.6, CW = g.S + pad * 2;
+      canvas.width = Math.round(CW * dpr); canvas.height = Math.round(CW * dpr);
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, pad * dpr, pad * dpr);
+      ctx.clearRect(-pad, -pad, CW, CW);
+      ctx.fillStyle = ink;
+      const cell = g.S / cells, N = px.N, ca = Math.cos(angle), sa = Math.sin(angle);
+      const half = g.S / 2, reach = Math.ceil((g.S * 0.75) / cell);
+      ctx.beginPath();
+      seed = which * 7919 + 13;
+      for (let v = -reach; v <= reach; v++) for (let u = -reach; u <= reach; u++) {
+        const x = half + (u * ca - v * sa) * cell, y = half + (u * sa + v * ca) * cell;
+        if (x < 0 || y < 0 || x >= g.S || y >= g.S) continue;
+        const k = (Math.floor((y / g.S) * N) * N + Math.floor((x / g.S) * N)) * 3;
+        const d = sep(px.rgb[k], px.rgb[k + 1], px.rgb[k + 2])[which];
+        const jitter = 0.92 + rnd() * 0.16;
+        const rad = Math.sqrt(d) * cell * 0.7 * jitter;
+        if (rad < cell * 0.07) continue;
+        ctx.moveTo(x + rad, y);
+        ctx.arc(x, y, rad, 0, 6.2832);
+      }
+      ctx.fill();
+      // uneven ink: the paper's tooth lifts a little of it off
+      if (texture) {
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.globalAlpha = 0.32;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = ctx.createPattern(texture, "repeat");
+        ctx.save(); ctx.translate(which * 97, which * 53); ctx.fillRect(-200, -200, CW + 400, CW + 400); ctx.restore();
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
+      }
+    }
+
+    let texture = null;
+    const textureReady = new Promise((res) => {
+      const t = new Image();
+      t.onload = () => { texture = t; res(); };
+      t.onerror = res;
+      t.src = "/runtime/grain.png";
+    });
+
+    function drawPlates(ctx) {
+      if (!px) return;
+      const g = geometry();
+      const key = [pxFor, g.W, g.H, ctx.params.screen, ctx.params.pink, ctx.params.blue].join("|");
+      if (drawnFor === key) return;
+      drawnFor = key;
+      place(g);
+      const pink = hex(ctx.params.pink || "#FF48B0"), blue = hex(ctx.params.blue || "#0078BF");
+      const sep = separator(pink, blue), cells = Math.max(30, +ctx.params.screen || 84);
+      plate($("blue"), ctx.params.blue || "#0078BF", 1, (15 * Math.PI) / 180, sep, g, cells);
+      plate($("pink"), ctx.params.pink || "#FF48B0", 0, (75 * Math.PI) / 180, sep, g, cells * 0.97);
+    }
+
+    // Each line is a new pull: the pink plate lands a little off, the same way every time for the same line.
+    function register(ctx) {
+      const amt = +(ctx.params.misregister ?? 1), vmin = Math.min(innerWidth, innerHeight) / 100;
+      let h = 2166136261;
+      const s = ctx.track.id + ":" + ctx.lyrics.index;
+      for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+      const r1 = ((h >>> 0) % 1000) / 1000 - 0.5, r2 = ((h >>> 10) % 1000) / 1000 - 0.5, r3 = ((h >>> 20) % 1000) / 1000 - 0.5;
+      root.setProperty("--x", (r1 * 0.7 * vmin * amt).toFixed(2) + "px");
+      root.setProperty("--y", (r2 * 0.7 * vmin * amt).toFixed(2) + "px");
+      root.setProperty("--r", (r3 * 0.22 * amt).toFixed(3) + "deg");
+    }
+
+    const NAMES = { "#FF48B0": "fluo pink", "#0078BF": "blue", "#FFE800": "yellow", "#00A95C": "green", "#FF665E": "bright red", "#765BA7": "violet", "#000000": "black" };
+    const inkName = (h) => NAMES[String(h || "").toUpperCase()] || String(h || "").toUpperCase();
+
+    Wallpaper.on("render", (ctx) => {
+      $("inks").textContent = "2-colour riso · " + inkName(ctx.params.pink) + " / " + inkName(ctx.params.blue);
+      const tall = innerWidth < innerHeight;
+      $("title").setAttribute("max", (parseFloat(ctx.params.titleSize) || 18) * (tall ? 1.3 : 1) + "vmin");
+      $("title").setAttribute("max-lines", "3");
+      const L = ctx.lyrics;
+      const text = ctx.focus ? "" : L.hasLyrics ? (L.index < 0 ? (L.lines.find((l) => l.text.trim()) || {}).text || "" : L.isInstrumental ? "· · ·" : L.current) : ctx.track.album || "";
+      if ($("line").textContent !== text) $("line").textContent = text;
+      $("kicker").textContent = !L.hasLyrics ? "From the album" : L.index < 0 ? "First line" : L.isInstrumental ? "Instrumental" : "Line " + (L.index + 1) + " of " + L.lines.filter((l) => l.text.trim()).length;
+      $("run").textContent = "Pull " + String(Math.max(1, L.index + 1)).padStart(3, "0") + " · " + ctx.track.elapsed + " / " + ctx.track.length;
+      register(ctx);
+      if (pxFor !== ctx.track.cover + ctx.track.id && ctx.track.cover) {
+        const want = ctx.track.cover + ctx.track.id;
+        Wallpaper.hold(Promise.all([loadCover(ctx.track.cover), textureReady]).then(([p]) => { px = p; pxFor = want; drawnFor = null; }).catch(() => {}));
+      }
+    });
+    Wallpaper.on("layout", (ctx) => drawPlates(ctx));
+    Wallpaper.on("tick", (ctx) => {
+      const t = "Pull " + String(Math.max(1, ctx.lyrics.index + 1)).padStart(3, "0") + " · " + ctx.track.elapsed + " / " + ctx.track.length;
+      if ($("run").textContent !== t) $("run").textContent = t;
+    });
+    addEventListener("resize", () => { drawnFor = null; Wallpaper.refresh(); });
+  </script>
+</body>
+</html>

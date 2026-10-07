@@ -9,7 +9,7 @@ final class BuilderWindowController: NSWindowController, WKScriptMessageHandler,
     private let store: TemplateStore
     private var webView: WKWebView!
     private var strip: DragStrip!
-    private static let barHeight: CGFloat = 44
+    private static let barHeight: CGFloat = 52
     private(set) var templateID: String?
     var onSaved: (() -> Void)?
 
@@ -21,6 +21,8 @@ final class BuilderWindowController: NSWindowController, WKScriptMessageHandler,
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
         window.title = "Template Builder"
+        window.appearance = NSAppearance(named: .darkAqua)  // the page is always the frosted dark theme, like Home
+        window.backgroundColor = NSColor(calibratedRed: 0.08, green: 0.08, blue: 0.1, alpha: 1)
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.minSize = NSSize(width: 1100, height: 680)

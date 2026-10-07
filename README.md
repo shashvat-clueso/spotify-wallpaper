@@ -11,6 +11,17 @@ with sliders or rewrite completely.
   <img src="docs/screenshots/template-visualizer.jpg" width="49%" alt="Visualizer template">
   <img src="docs/screenshots/template-poster.jpg" width="49%" alt="Album Poster template">
   <img src="docs/screenshots/template-glow.jpg" width="49%" alt="Glow template">
+  <img src="docs/screenshots/template-cassette.jpg" width="49%" alt="Cassette template">
+  <img src="docs/screenshots/template-liner-notes.jpg" width="49%" alt="Liner Notes template">
+  <img src="docs/screenshots/template-weather.jpg" width="49%" alt="Weather &amp; Time template">
+  <img src="docs/screenshots/template-departure-board.jpg" width="49%" alt="Departure Board template">
+  <img src="docs/screenshots/template-riso.jpg" width="49%" alt="Riso Print template">
+  <img src="docs/screenshots/template-swiss-grid.jpg" width="49%" alt="Swiss Grid template">
+  <img src="docs/screenshots/template-hardware-panel.jpg" width="49%" alt="Hardware Panel template">
+  <img src="docs/screenshots/template-film-strip.jpg" width="49%" alt="Film Strip template">
+  <img src="docs/screenshots/template-albers.jpg" width="49%" alt="Albers template">
+  <img src="docs/screenshots/template-breathing-type.jpg" width="49%" alt="Breathing Type template">
+  <img src="docs/screenshots/template-receipt.jpg" width="49%" alt="Receipt template">
 </p>
 
 ## Features
@@ -24,11 +35,21 @@ with sliders or rewrite completely.
 - **The real wallpaper stays in sync.** On every track change the app also sets your actual wallpaper to a still of
   the song, so the lock screen and Mission Control match. When you quit, or nothing is playing, your own wallpaper
   comes back.
-- **Eleven built-in templates:** Lyric Card (Spotify lyric cards), Album Poster (minimalist posters with color swatches),
+- **Twenty-two built-in templates:** Lyric Card (Spotify lyric cards), Album Poster (minimalist posters with color swatches),
   Minimal, Glow (Apple Music style), Vinyl (a spinning record with the cover as its label), Typewriter (lyrics type
   themselves out), Lock Screen (big live clock), Visualizer (bars in the cover's colors), Brushwork (a living oil
   painting made from the cover with p5.js brushes) and Painted Cover / Painted Cover Wide (the cover repainted in
-  sharp knife strokes, with the song in Helvetica).
+  sharp knife strokes, with the song in Helvetica), Cassette (a mixtape whose reels wind through the song, with the
+  current line handwritten on its label), Liner Notes (the CD booklet: the whole song typeset beside the cover) and
+  Weather & Time (a sky that follows your time of day and weather, with rain running down the glass), Departure
+  Board (each line clatters in on a split-flap board under a dot-matrix title), Riso Print (the cover as two-ink
+  halftone, a hair out of register on every line), Swiss Grid (the lyric set huge on a twelve-column grid), Hardware
+  Panel (a little device with the cover behind a speaker grille, the lyric on an OLED and knobs that turn with the
+  song), Film Strip (35 mm frames that advance a frame per line, under a yellow subtitle), Albers (the cover's four
+  strongest colours as nested squares that trade places each line), Breathing Type (the key word's width swells with
+  the beat) and Receipt (the song printing on a thermal slip, line by line).
+- **Duets and translations:** templates can lay out duets voice by voice and show translated lyrics under each line,
+  and lyrics hide while you share your screen.
 - **Light on your Mac:** about 1–5% CPU while animating at 60 fps. Lines change on timers set for their exact
   timestamps, animations run on the GPU, the cover is blurred once per song, and everything pauses when windows cover
   the desktop.
@@ -37,7 +58,7 @@ with sliders or rewrite completely.
   cover, images, shapes, a vinyl record, a progress bar, a waveform and color swatches on a live canvas; style them;
   add motion; then **Edit Code** to keep going in HTML/CSS.
 - **Customizable:** each template's settings (colors, fonts, sizes, lines shown, blur, grain, animation) appear in
-  the Customize window with a live preview. You can also duplicate a template and edit its HTML/CSS directly; it
+  the app's Home window next to a live preview. You can also duplicate a template and edit its HTML/CSS directly; it
   reloads as you save.
 - **No login or API key.** It reads the Spotify desktop app directly.
 
@@ -70,10 +91,9 @@ Everything is in the ♪ menu bar icon:
 
 | Menu item | What it does |
 |---|---|
-| **Template** | Switch between templates |
-| **Customize… (⌘,)** | Gallery, live preview and every setting of each template |
+| **Open Spotify Wallpaper… (⌘O)** | Home: a live preview with each template's settings, a shelf of recent and favourite templates, the full gallery, a template per display, the History Wall, and lyrics source and timing. Also opens when you open the app again from Finder or the Dock |
 | **Template Builder…** | Design a new template visually, no code |
-| **Lyrics** | Which sources were used, or pick one source. Nudge timing earlier or later (remembered per song), or search again |
+| **Lyrics** | Nudge this song's timing earlier or later (remembered per song). Pick the source or search again in Home's Lyrics tab |
 | **Refresh Rate** | Display maximum, 60, 30 or 15 fps for the animation. Lyric timing is exact at any rate |
 | **Pause Wallpaper** | Put your normal wallpaper back until you resume |
 | **Open Templates Folder** | Where your own templates live |
@@ -85,7 +105,7 @@ Everything is in the ♪ menu bar icon:
 
 ### Without code: the Template Builder
 
-Open **Template Builder…** from the menu, or **＋** in Customize, and start from a layout (Blank, Spotlight, Glass Card,
+Open **Template Builder…** from the menu, or **Builder** in the app's window, and start from a layout (Blank, Spotlight, Glass Card,
 Headline, Record Room, Analog Clock, Clock).
 
 - **Tools** (bar under the canvas): Move (V), Text (T), Rectangle (R), Ellipse (O), Line (L), Triangle, Star,
@@ -126,7 +146,7 @@ ultrawide. Designs are saved as normal templates in the templates folder, so the
 ### With code
 
 A template is a folder with a `manifest.json` (name and settings) and an `index.html`. The quickest start is
-**Customize → pick a template → Duplicate & edit code**. That copies it to
+**Open Spotify Wallpaper → pick a template → ⋯ → Duplicate & edit code**. That copies it to
 `~/Library/Application Support/Spotify Wallpaper/Templates/`, and the preview and desktop reload every time you save.
 
 ```html
@@ -167,6 +187,20 @@ CSS animation onto the song, the current line or the clock, on the GPU), text wi
 (`<lyrics-block>`, `<fit-text>`, `<swatch-row>`, `<wave-form>`, `<progress-bar>`) and animation hooks. The full
 reference is in **[TEMPLATE_GUIDE.md](app/Resources/web/TEMPLATE_GUIDE.md)**, which is also copied into your
 templates folder.
+
+### Sharing templates
+
+A template travels as one `.swtemplate` file (the template folder, zipped). In the app's window, open a template's
+**⋯** menu and choose **Export “…”…**; send the file to anyone with Spotify Wallpaper, who double-clicks it
+(or uses **Import template…**) to install it. Built-in templates export too, so you can share a tuned copy.
+
+To install from the web, link to `spotify-wallpaper://install?url=<https address of a .swtemplate>`. The app
+downloads it (https only, up to 25 MB) and asks before installing, showing the template's name and author from its
+`manifest.json`.
+
+Every install is checked first: it needs `manifest.json` and `index.html`, may not contain links or paths outside
+its folder, and never replaces a template you have. A name that's taken gets a number (“Vinyl 2”). Templates are
+web pages, so only install ones from people you trust.
 
 ## How it works
 

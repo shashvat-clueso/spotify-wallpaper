@@ -2,6 +2,7 @@
   "name": "Lyric Card",
   "description": "A Spotify-style lyric card, colored from the cover, floating over a blurred backdrop.",
   "author": "Built-in",
+  "category": "lyrics",
   "params": [
     {
       "key": "cardColor",
@@ -122,6 +123,18 @@
       "key": "karaoke",
       "type": "bool",
       "label": "Karaoke fill",
+      "default": true
+    },
+    {
+      "key": "duet",
+      "type": "bool",
+      "label": "Duet layout",
+      "default": true
+    },
+    {
+      "key": "translations",
+      "type": "bool",
+      "label": "Show translations",
       "default": true
     }
   ]

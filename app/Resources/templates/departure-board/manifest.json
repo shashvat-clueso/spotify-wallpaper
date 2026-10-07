@@ -1,0 +1,72 @@
+{
+  "name": "Departure Board",
+  "description": "A station split-flap board: each lyric line clatters in letter by letter, under a dot-matrix title in signal amber.",
+  "author": "Built-in",
+  "category": "lyrics",
+  "params": [
+    {
+      "key": "amber",
+      "type": "color",
+      "label": "Signal amber",
+      "default": "#FFB21A"
+    },
+    {
+      "key": "flapText",
+      "type": "color",
+      "label": "Flap letters",
+      "default": "#F4F1E8"
+    },
+    {
+      "key": "lineColor",
+      "type": "color",
+      "label": "Line badge",
+      "default": "auto:vibrant"
+    },
+    {
+      "key": "rows",
+      "type": "int",
+      "label": "Rows of flaps",
+      "min": 2,
+      "max": 6,
+      "default": 4
+    },
+    {
+      "key": "speed",
+      "type": "select",
+      "label": "Flip speed",
+      "default": "normal",
+      "options": [
+        {
+          "value": "fast",
+          "label": "Fast"
+        },
+        {
+          "value": "normal",
+          "label": "Station"
+        },
+        {
+          "value": "slow",
+          "label": "Slow"
+        }
+      ]
+    },
+    {
+      "key": "showNext",
+      "type": "bool",
+      "label": "Next line (calling at)",
+      "default": true
+    },
+    {
+      "key": "clock24",
+      "type": "bool",
+      "label": "24-hour clock",
+      "default": true
+    },
+    {
+      "key": "grain",
+      "type": "bool",
+      "label": "Film grain",
+      "default": true
+    }
+  ]
+}

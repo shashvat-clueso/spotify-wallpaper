@@ -1,7 +1,8 @@
 {
   "name": "Painted Cover",
-  "description": "The cover itself, repainted as a coarse knife painting in sharp, flat strokes, beside the song in Helvetica. Detail grows as the song plays, and a new song is painted over the last one.",
+  "description": "The cover itself, repainted as a coarse painting in knife slabs, curved sweeps, dry brush and impasto, beside the song in Helvetica. Detail grows as the song plays, and a new cover is painted over the last one.",
   "author": "Built-in",
+  "category": "painting",
   "params": [
     {
       "key": "side",
@@ -16,6 +17,38 @@
         {
           "value": "right",
           "label": "Right"
+        }
+      ]
+    },
+    {
+      "key": "strokes",
+      "type": "select",
+      "label": "Strokes",
+      "default": "mixed",
+      "options": [
+        {
+          "value": "mixed",
+          "label": "Mixed (knife, sweeps, dry brush, impasto)"
+        },
+        {
+          "value": "genre",
+          "label": "Match the genre"
+        },
+        {
+          "value": "knife",
+          "label": "Knife only"
+        },
+        {
+          "value": "sweep",
+          "label": "Curved sweeps"
+        },
+        {
+          "value": "dry",
+          "label": "Dry brush"
+        },
+        {
+          "value": "impasto",
+          "label": "Impasto dabs"
         }
       ]
     },
@@ -65,6 +98,36 @@
       "default": true
     },
     {
+      "key": "paintWords",
+      "type": "bool",
+      "label": "Paint a word from each lyric line",
+      "default": true
+    },
+    {
+      "key": "beatSync",
+      "type": "bool",
+      "label": "Strokes land on the beat",
+      "default": true
+    },
+    {
+      "key": "wetness",
+      "type": "bool",
+      "label": "Fresh paint looks wet",
+      "default": true
+    },
+    {
+      "key": "timelapse",
+      "type": "bool",
+      "label": "Timelapse of the last painting before a new cover",
+      "default": true
+    },
+    {
+      "key": "memory",
+      "type": "bool",
+      "label": "Keep earlier songs around the edges",
+      "default": false
+    },
+    {
       "key": "font",
       "type": "font",
       "label": "Font",
@@ -99,6 +162,12 @@
       "default": 4.4
     },
     {
+      "key": "translations",
+      "type": "bool",
+      "label": "Show translations",
+      "default": true
+    },
+    {
       "key": "linesBefore",
       "type": "int",
       "label": "Lines before",
@@ -117,7 +186,7 @@
     {
       "key": "grain",
       "type": "bool",
-      "label": "Grain",
+      "label": "Film grain on the background",
       "default": false
     }
   ]

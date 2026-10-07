@@ -4,16 +4,17 @@
 <meta charset="utf-8">
 <link rel="stylesheet" href="theme.css">
 <style>
-  body { display: grid; grid-template-rows: var(--bar) 1fr; background: var(--panel); -webkit-user-select: text; user-select: text; }
-  .scroll { padding: 8px 0 40px; }
-  article { max-width: 640px; margin: 0 auto; padding: 0 32px; font-size: 13px; line-height: 1.6; }
+  body { display: grid; grid-template-rows: var(--bar) 1fr; -webkit-user-select: text; user-select: text; }
+  .scroll { padding: 4px 16px 24px; }
+  article { max-width: 660px; margin: 0 auto; padding: 4px 30px 20px; font-size: 13px; line-height: 1.6; border-radius: 18px;
+    background: var(--panel); -webkit-backdrop-filter: blur(26px) saturate(1.5); backdrop-filter: blur(26px) saturate(1.5); box-shadow: var(--rim); }
   article h1 { display: none; }
   article > p:first-of-type { color: var(--text-2); margin: 10px 0 18px; }
   .release { padding: 18px 0 8px; border-top: 1px solid var(--line); }
   .release:first-of-type { border-top: 0; }
-  .release h2 { display: flex; align-items: center; gap: 8px; font-size: 17px; margin: 0 0 2px; }
+  .release h2 { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 2px; }
   .release .date { color: var(--text-2); font-size: 12px; font-weight: 400; }
-  .release h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); margin: 14px 0 6px; }
+  .release h3 { font: 500 10.5px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin: 16px 0 8px; }
   .release ul { margin: 0; padding-left: 18px; }
   .release li { margin: 4px 0; }
   .release li::marker { color: var(--text-3); }
@@ -46,6 +47,8 @@
           html += "<li>" + inline(item[2]);
           continue;
         }
+        // an indented line inside a list item is that item wrapping onto the next line
+        if (list.length && /^\s+\S/.test(line)) { html += " " + inline(line.trim()); continue; }
         closeLists();
         if (/^# /.test(line)) html += `<h1>${inline(line.slice(2))}</h1>`;
         else if (/^## /.test(line)) {

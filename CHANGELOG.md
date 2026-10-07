@@ -2,6 +2,78 @@
 
 All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](https://semver.org).
 
+## 1.5.0 — 2026-10-07
+
+### Added
+- **Spotify Wallpaper has a home.** "Open Spotify Wallpaper…" (⌘O, or open the app again from Finder or the Dock)
+  shows your wallpaper live with its settings beside it as colour swatches, segmented controls and sliders, plus a
+  shelf of recent and favourite templates. It replaces the Customize window and the menu's Template list.
+- **Browse all:** every template in a gallery grouped by feel (Lyrics, Painting, Print & paper, Objects, Calm, Yours),
+  with search, thumbnails of the song that's playing, and a record-crate view you flip through with the arrow keys.
+- **A template per display:** the Displays tab shows your screens as they're arranged; drop a template onto one to give
+  that screen its own wallpaper. It's remembered per display, even after unplugging it.
+- **Quick Switcher** (⌃⌥⌘W): a search panel over your desktop to switch templates and run actions (Share Lyric Card,
+  Focus Mode, lyrics ±0.5 s, Pause, History Wall). ↩ puts a template on every screen, ⌥↩ on the screen under the pointer.
+- The History Wall and the lyrics source and timing controls now live in tabs in the app's window.
+- **Settings** (⌘,): a tab in the app's window for everything app-wide (launch at login, frame rate, Focus Mode and
+  screen sharing, weather, beat sync, lyric card size, history, templates folder, updates, keyboard shortcuts). The menu
+  bar menu now holds only everyday actions.
+- The Template Builder and What's New use the same frosted dark look as the app's window.
+- **Three new templates:** **Cassette** (a mixtape whose reels wind through the song, with the current line handwritten
+  on the label), **Liner Notes** (the CD booklet, with the whole song typeset beside the cover) and **Weather & Time**
+  (a sky that follows the time of day and your local weather, with rain running down the glass).
+- **Eight more templates:** **Departure Board** (split-flap lyrics under a dot-matrix title), **Riso Print** (the
+  cover as two-ink halftone that slips out of register each line), **Swiss Grid** (the lyric set huge on a
+  twelve-column grid, words rising one by one), **Hardware Panel** (the cover behind a speaker grille, the lyric on an
+  OLED, knobs that turn with the song and a grille that thumps on the beat), **Film Strip** (the cover as 35 mm
+  frames advancing a frame per line, under a yellow subtitle), **Albers** (the cover's four strongest colours as
+  nested squares that trade places each line), **Breathing Type** (the line's key word swelling with the beat in SF
+  Pro's variable width) and **Receipt** (the song printing on a thermal slip, with a total and barcode at the end).
+- **Painted Cover comes alive:** the most striking word of each lyric line is lettered into the painting in brush
+  strokes, then painted over; before a new cover goes on, the last painting replays as a ~4-second timelapse; fresh
+  paint looks wet and dries to matte; a new "Match the genre" stroke style (rock in heavy impasto and knife,
+  electronic in crisp horizontal slabs, jazz in warm dry brush, classical and ambient in long soft sweeps); and an
+  optional "Keep earlier songs around the edges" mode that builds a collage of the session.
+- **Sync to the Beat** (off by default, needs Screen Recording): Spotify's sound is analysed live (nothing is
+  recorded) so paintings land strokes on the beat and templates can pulse with the music.
+- **History Wall:** every song's wallpaper is kept in a gallery grouped by month. Filter it, flip through it with the
+  arrow keys, and export a month as a contact sheet or an animated GIF. Turn it off or clear it from the menu.
+- **Share Lyric Card** (⌃⌥⌘L): the current template with the line being sung, as a 9:16 Story or a square image,
+  saved to Pictures and copied to the clipboard.
+- **Focus Mode:** lyrics hide themselves while you share your screen (Zoom, Google Meet, Teams, Slack, Discord,
+  FaceTime, Webex, Screen Sharing), or whenever you press ⌃⌥⌘F.
+- **Translations:** lyrics from NetEase and QQ Music can show a translation under each line, for songs in a language
+  you don't read (Lyric Card, Glow, Minimal and Painted Cover).
+- **Duets:** each line knows who sings it; Lyric Card and Glow lay a duet out voice by voice.
+- **Share templates:** export any template as a `.swtemplate` file, double-click one to install it, or install from a
+  `spotify-wallpaper://install?url=…` link.
+- For template authors: `track.genre` (from Apple's iTunes catalogue), `weather`, `time.dayPhase`/`sunProgress`,
+  `focus`, per-line `translation` and `singer`, a `beat` event with `--beat` and `--level`, and the handwriting fonts
+  Bradley Hand, Noteworthy and Chalkboard SE. See TEMPLATE_GUIDE.
+
+### Changed
+- What's New no longer breaks a wrapped list item into separate paragraphs.
+- Weather uses your approximate location (asked once); turn it off with "Use Weather" in the menu.
+
+## 1.4.1 — 2026-10-07
+
+### Added
+- **More kinds of stroke in Painted Cover:** curved sweeps, raised impasto dabs, dry brush and hatching join the knife
+  slabs. A new **Strokes** setting mixes them (slabs and sweeps block in, dry brush models, impasto and hatching pick
+  out detail) or uses one kind throughout. The brush library gains `studio.sweep`, `studio.impasto`, `studio.hatch`
+  and `studio.dry`.
+
+### Changed
+- Painted Cover and Brushwork only start a new painting when the **cover** changes, so the next song from the same
+  album keeps painting the same canvas instead of starting over.
+- Painted Cover Wide: film grain sits on the song card only (on by default), never over the painting; the lyrics fill
+  whatever height the title leaves, so the "Lines after" setting is gone. Painted Cover's grain sits behind the
+  painting, on the background.
+
+### Fixed
+- Skipping or seeking a song sometimes put your own wallpaper back for a moment. A single empty reading from Spotify
+  no longer counts as "stopped"; your wallpaper comes back once nothing has played for about 5 seconds.
+
 ## 1.4.0 — 2026-10-04
 
 ### Added

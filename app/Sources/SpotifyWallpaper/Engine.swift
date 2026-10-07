@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import WebKit
 
 /// Two outputs per screen:
@@ -22,15 +23,19 @@ final class Engine {
     /// Which source(s) the current lyrics came from, for the menu.
     private(set) var lyricsSourceText = ""
     private var coverData: Data?
+    /// Identifies the cover image itself, so templates can tell "new song, same album art" from a new cover.
+    private var coverKey = ""
     private var colors: [String: Any] = Palette.extract(from: nil)
     private var loadedTrackID: String?
     private var loadingTrackID: String?
 
     private var layers: [CGDirectDisplayID: DesktopLayer] = [:]
     private var renderers: [CGDirectDisplayID: ScreenRenderer] = [:]
-    private var liveKey = ""
-    private var stillKey = ""
-    private var stillRendering = false
+    /// What each screen's live layer / still last got; a screen is redrawn only when its own key changes.
+    private var liveKeys: [CGDirectDisplayID: String] = [:]
+    private var stillKeys: [CGDirectDisplayID: String] = [:]
+    /// True while the real wallpaper's still is being drawn (ThumbnailService waits for it).
+    private(set) var stillRendering = false
     private var generation = 0  // bumped when template code changes on disk
     private var liveEpoch = 0   // bumped on every settings change
     private var stillEpoch = 0  // bumped once settings stop changing
@@ -38,11 +43,33 @@ final class Engine {
     private var stillDebounce: Task<Void, Never>?
     private var latestTrack: Track?
     private var latestStamp: Double = 0
+    /// When Spotify first stopped reporting a track. Skipping or seeking can make a single reading come back empty,
+    /// so the wallpaper is only given back once nothing has played for `goneGrace` seconds.
+    private var goneSince: Date?
+    private static let goneGrace: TimeInterval = 5
+    // data services (see the extension at the end)
+    let weather = WeatherService()
+    private let audio = AudioAnalyzer()
+    private lazy var genres = GenreService(paths: paths)
+    private var genre = (trackID: "", name: "")
+    private var beat = (starting: false, retryAt: Date.distantPast, trackID: "")
 
     /// Called when the preview in the Customize window should get new state / a clock tick.
     var onStateChange: (() -> Void)?
     var onClock: ((String) -> Void)?
     var onTemplateFilesChanged: (() -> Void)?
+    /// The finished still for the primary screen (JPEG), the track and template it shows. Feeds the history.
+    var onStillRendered: ((Data, NSScreen, Track, String) -> Void)?
+
+    /// Lyrics hidden (screen sharing / Focus Mode): sent as `focus` to the live layers and the still.
+    var focus = false {
+        didSet {
+            guard focus != oldValue else { return }
+            liveEpoch += 1
+            stillEpoch += 1
+            tick()
+        }
+    }
 
     var paused: Bool {
         get { UserDefaults.standard.bool(forKey: "paused") }
@@ -87,11 +114,19 @@ final class Engine {
         schemeHandler.cover = { [weak self] in self?.coverData }
         // Spotify is read on its own thread; each reading lands here
         spotify.onUpdate = { [weak self] track, stamp in
-            self?.latestTrack = track
-            self?.latestStamp = stamp
-            self?.tick()
+            guard let self else { return }
+            if track == nil, self.latestTrack != nil {
+                let since = self.goneSince ?? Date()
+                self.goneSince = since
+                if Date().timeIntervalSince(since) < Self.goneGrace { return }  // probably a skip/seek blip: hold on
+            }
+            self.goneSince = nil
+            self.latestTrack = track
+            self.latestStamp = stamp
+            self.tick()
         }
         spotify.start()
+        startDataServices()
         Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.checkTemplateEdits() }
         }
@@ -103,6 +138,11 @@ final class Engine {
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.screensChanged() }
         }
+        // a screen's template changed: its keys change with it, so only that screen is redrawn
+        NotificationCenter.default.addObserver(
+            forName: TemplateStore.activeChangedNotification, object: store, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
+        }
         tick()
     }
 
@@ -113,9 +153,30 @@ final class Engine {
 
     /// Redraw everything, e.g. after switching templates.
     func invalidate() {
-        liveKey = ""
-        stillKey = ""
+        liveKeys.removeAll()
+        stillKeys.removeAll()
         tick()
+    }
+
+    /// The template `screen` shows: its own if it has one, else the default.
+    func templateID(for screen: NSScreen) -> String {
+        store.activeID(for: displayID(screen))
+    }
+
+    private func template(for screen: NSScreen) -> WallpaperTemplate? {
+        store.template(templateID(for: screen)) ?? store.active
+    }
+
+    /// One key per screen; a screen whose key changed needs redrawing. Pure, for tests.
+    nonisolated static func screenKeys(trackID: String, templates: [CGDirectDisplayID: String], generation: Int,
+                                       epoch: Int) -> [CGDirectDisplayID: String] {
+        templates.mapValues { "\(trackID)|\($0)|\(generation)|\(epoch)" }
+    }
+
+    /// Screens in `new` whose key differs from `old`, in display order.
+    nonisolated static func changedScreens(_ new: [CGDirectDisplayID: String], from old: [CGDirectDisplayID: String])
+        -> [CGDirectDisplayID] {
+        new.keys.filter { new[$0] != old[$0] }.sorted()
     }
 
     /// Settings changed: the live layer updates immediately, the still once the sliders stop moving.
@@ -145,11 +206,12 @@ final class Engine {
         let previousID = track?.id
         track = latestTrack
         pollStamp = latestStamp
+        updateBeatCapture()
         guard let t = track else {
             hideLayers()
             setter.restore()
-            liveKey = ""
-            stillKey = ""
+            liveKeys.removeAll()
+            stillKeys.removeAll()
             if previousID != nil { onStateChange?() }
             return
         }
@@ -157,44 +219,53 @@ final class Engine {
             loadingTrackID = t.id
             Task { await load(t) }
         }
-        guard loadedTrackID == t.id, !paused, let template = store.active else { return }
+        guard loadedTrackID == t.id, !paused, store.active != nil else { return }
 
-        // live layers
-        syncLayers(template)
-        let lk = "\(t.id)|\(template.id)|\(generation)|\(liveEpoch)"
-        if lk != liveKey {
-            liveKey = lk
-            for (id, layer) in layers {
-                let screen = NSScreen.screens.first { displayID($0) == id }
-                var payload = statePayload(for: screen)
-                payload["params"] = store.values(template.id)
-                payload["fps"] = refreshRate
-                layer.sendState(jsonString(payload))
-            }
-            onStateChange?()
+        // each screen's template
+        var screenTemplates: [CGDirectDisplayID: WallpaperTemplate] = [:]
+        for screen in NSScreen.screens { screenTemplates[displayID(screen)] = template(for: screen) }
+        let ids = screenTemplates.mapValues(\.id)
+
+        // live layers: only the screens whose template/track/settings changed get new state
+        syncLayers(screenTemplates)
+        let live = Self.screenKeys(trackID: t.id, templates: ids, generation: generation, epoch: liveEpoch)
+        let liveChanged = Self.changedScreens(live, from: liveKeys)
+        for id in liveChanged {
+            guard let layer = layers[id], let template = screenTemplates[id] else { continue }
+            liveKeys[id] = live[id]
+            var payload = statePayload(for: NSScreen.screens.first { displayID($0) == id })
+            payload["params"] = store.values(template.id)
+            payload["fps"] = refreshRate
+            payload["focus"] = focus
+            layer.sendState(jsonString(payload))
         }
+        if !liveChanged.isEmpty { onStateChange?() }
         let clock = jsonString(["position": t.position, "isPlaying": t.isPlaying, "stamp": pollStamp])
         layers.values.forEach { $0.sendClock(clock); $0.show() }
         onClock?(clock)
 
-        // real wallpaper still
-        let sk = "\(t.id)|\(template.id)|\(generation)|\(stillEpoch)"
-        if sk != stillKey && !stillRendering {
-            stillKey = sk
-            Task { await renderStill(template) }
+        // real wallpaper still: only the screens whose key changed are redrawn
+        let still = Self.screenKeys(trackID: t.id, templates: ids, generation: generation, epoch: stillEpoch)
+        let stillChanged = Self.changedScreens(still, from: stillKeys)
+        if !stillChanged.isEmpty && !stillRendering {
+            for id in stillChanged { stillKeys[id] = still[id] }
+            let screens = NSScreen.screens.filter { stillChanged.contains(displayID($0)) }
+            Task { await renderStill(screens) }
         }
     }
 
-    private func syncLayers(_ template: WallpaperTemplate) {
-        var url = URLComponents(url: template.url, resolvingAgainstBaseURL: false)!
-        url.queryItems = [.init(name: "v", value: String(generation)), .init(name: "live", value: "1")]
+    /// Each screen's layer shows that screen's template (a layer only reloads when its own URL changes).
+    private func syncLayers(_ templates: [CGDirectDisplayID: WallpaperTemplate]) {
         for screen in NSScreen.screens {
             let id = displayID(screen)
+            guard let template = templates[id] else { continue }
             if layers[id]?.frame != screen.frame {
                 layers[id]?.close()
                 layers[id] = DesktopLayer(screen: screen, configuration: makeWebConfiguration(throttleWhenHidden: true))
-                liveKey = ""
+                liveKeys[id] = nil
             }
+            var url = URLComponents(url: template.url, resolvingAgainstBaseURL: false)!
+            url.queryItems = [.init(name: "v", value: String(generation)), .init(name: "live", value: "1")]
             layers[id]?.load(url.url!)
         }
     }
@@ -202,10 +273,12 @@ final class Engine {
     private func hideLayers() { layers.values.forEach { $0.hide() } }
 
     private func load(_ t: Track) async {
+        fetchGenre(t)
         async let cover = download(t.artworkURL)
         async let found = lyricsService.candidates(for: t)
         let (c, cs) = await (cover, found)
         coverData = c
+        coverKey = c.map { SHA256.hash(data: $0).prefix(8).map { String(format: "%02x", $0) }.joined() } ?? ""
         colors = Palette.extract(from: c)
         candidates = cs
         loadedTrackID = t.id
@@ -249,7 +322,7 @@ final class Engine {
     private func applyLyrics() {
         var (resolved, source) = LyricsService.resolve(candidates, choice: lyricsChoice, duration: track?.duration ?? 0)
         let offset = lyricsOffset
-        if offset != 0 { resolved.lines = resolved.lines.map { LyricLine(t: $0.t + offset, text: $0.text) } }
+        if offset != 0 { for i in resolved.lines.indices { resolved.lines[i].t += offset } }
         lyrics = resolved
         lyricsSourceText = source
         liveEpoch += 1
@@ -264,13 +337,14 @@ final class Engine {
 
     // MARK: still for the real wallpaper
 
-    private func renderStill(_ template: WallpaperTemplate) async {
+    private func renderStill(_ screens: [NSScreen]) async {
         stillRendering = true
         defer { stillRendering = false }
-        var url = URLComponents(url: template.url, resolvingAgainstBaseURL: false)!
-        url.queryItems = [.init(name: "v", value: String(generation))]
         let trackID = track?.id
-        for screen in NSScreen.screens {
+        for screen in screens {
+            guard let template = template(for: screen) else { continue }
+            var url = URLComponents(url: template.url, resolvingAgainstBaseURL: false)!
+            url.queryItems = [.init(name: "v", value: String(generation))]
             let id = displayID(screen), size = screen.frame.size
             if renderers[id]?.size != size {
                 renderers[id]?.close()
@@ -278,11 +352,13 @@ final class Engine {
             }
             var payload = statePayload(for: screen)
             payload["params"] = store.values(template.id)
+            payload["focus"] = focus
             guard let image = await renderers[id]?.render(url: url.url!, payload: payload) else { continue }
             let jpeg = await Task.detached { jpegData(image) }.value
             // the song may have changed or stopped while drawing
             guard let jpeg, !paused, track?.id == trackID, track != nil else { return }
             setter.show(jpeg, on: screen)
+            if let t = track, screen == NSScreen.screens.first { onStillRendered?(jpeg, screen, t, template.id) }
         }
     }
 
@@ -295,15 +371,17 @@ final class Engine {
         ]
         guard let t = track, loadedTrackID == t.id else { return sample(screenInfo) }
         let safeID = t.id.replacingOccurrences(of: "[^A-Za-z0-9]", with: "_", options: .regularExpression)
-        return [
+        var payload: [String: Any] = [
             "track": ["id": t.id, "title": t.title, "artist": t.artist, "album": t.album,
-                      "cover": "sw://app/cover/\(safeID).jpg", "duration": t.duration,
-                      "position": t.position, "isPlaying": t.isPlaying, "stamp": pollStamp],
-            "lyrics": ["lines": lyrics.lines.map { ["t": $0.t, "text": $0.text] },
-                       "index": lyrics.index(at: t.position), "synced": lyrics.synced],
+                      "cover": "sw://app/cover/\(safeID).jpg", "coverKey": coverKey, "duration": t.duration,
+                      "position": t.position, "isPlaying": t.isPlaying, "stamp": pollStamp,
+                      "genre": genre.trackID == t.id ? genre.name : ""],
+            "lyrics": lyricsPayload(lyrics, index: lyrics.index(at: t.position)),
             "colors": colors,
             "screen": screenInfo,
         ]
+        payload["weather"] = weather.current?.json
+        return payload
     }
 
     private lazy var sampleColors: [String: Any] =
@@ -315,15 +393,18 @@ final class Engine {
                      "The city sleeps but we're still wide awake", "Counting every chance we didn't take",
                      "", "Stay a little longer, stay till morning light",
                      "We can fold the stars up, keep them out of sight", "Stay a little longer, it's alright"]
+        var sampleLyrics = Lyrics(lines: lines.enumerated().map { LyricLine(t: 52.0 + Double($0.offset) * 6, text: $0.element) },
+                                  synced: true)
+        sampleLyrics.lines[3].translation = "Contando cada oportunidad que no tomamos"
         return [
             "track": ["id": "sample", "title": "Till Morning Light", "artist": "Sample Artist",
                       "album": "Preview Sessions", "cover": "sw://app/ui/sample-cover.jpg",
                       "duration": 214.0, "position": 71.0, "isPlaying": false,
-                      "stamp": Date().timeIntervalSince1970 * 1000],
-            "lyrics": ["lines": lines.enumerated().map { ["t": 52.0 + Double($0.offset) * 6, "text": $0.element] },
-                       "index": 3, "synced": true],
+                      "stamp": Date().timeIntervalSince1970 * 1000, "genre": "Pop"],
+            "lyrics": lyricsPayload(sampleLyrics, index: 3),
             "colors": sampleColors,
             "screen": screenInfo,
+            "weather": weather.current?.json ?? Self.sampleWeather,
         ]
     }
 
@@ -338,5 +419,126 @@ final class Engine {
             invalidate()
         }
         editStamp = stamp
+    }
+}
+
+// MARK: - data services: genre, translations/duets in the payload, weather, beat sync
+
+extension Engine {
+    private static var sampleWeather: [String: Any] {
+        let midnight = Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000, now = Date().timeIntervalSince1970 * 1000
+        let sunrise = midnight + 6.5 * 3_600_000, sunset = midnight + 19 * 3_600_000
+        return ["condition": "clouds", "temperature": 18.5, "isDay": now >= sunrise && now < sunset, "sunrise": sunrise, "sunset": sunset]
+    }
+
+    private func lyricsPayload(_ l: Lyrics, index: Int) -> [String: Any] {
+        var out: [String: Any] = [
+            "lines": l.lines.map { line -> [String: Any] in
+                var d: [String: Any] = ["t": line.t, "text": line.text]
+                if let tr = line.translation { d["translation"] = tr }
+                if let s = line.singer { d["singer"] = s }
+                return d
+            },
+            "index": index, "synced": l.synced, "hasTranslation": l.hasTranslation,
+        ]
+        if !l.singers.isEmpty { out["singers"] = l.singers }
+        return out
+    }
+
+    private func startDataServices() {
+        weather.onChange = { [weak self] in
+            guard let self else { return }
+            self.liveEpoch += 1
+            self.stillEpoch += 1
+            self.tick()
+        }
+        weather.start()
+        audio.onBeat = { [weak self] json in self?.sendBeat(json) }
+        audio.onStopped = { [weak self] in
+            self?.beat.retryAt = Date().addingTimeInterval(5)
+            self?.updateBeatCapture()
+        }
+    }
+
+    /// Looked up alongside the cover and lyrics but never waited for: if it lands after the song loaded, redraw.
+    private func fetchGenre(_ t: Track) {
+        Task {
+            let name = await genres.genre(artist: t.artist, title: t.title)
+            genre = (t.id, name)
+            if loadedTrackID == t.id, !name.isEmpty {
+                liveEpoch += 1
+                stillEpoch += 1
+                tick()
+            }
+        }
+    }
+
+    /// "Use Weather" in the menu.
+    var useWeather: Bool {
+        get { weather.enabled }
+        set { weather.enabled = newValue }
+    }
+
+    // MARK: beat sync
+
+    /// "Sync to the Beat" in the menu. Off by default: listening to Spotify needs Screen Recording permission.
+    var beatSync: Bool {
+        get { UserDefaults.standard.bool(forKey: "beatSync") }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "beatSync")
+            guard newValue else { return updateBeatCapture() }
+            beat.retryAt = .distantPast
+            Task {
+                if await AudioAnalyzer.requestAccess() { updateBeatCapture() } else { beatPermissionMissing() }
+            }
+        }
+    }
+
+    /// Capture runs only while there is something to hear and someone to show it to.
+    private func updateBeatCapture() {
+        let want = beatSync && !paused && track?.isPlaying == true
+        if let id = track?.id, id != beat.trackID { beat.trackID = id; audio.reset() }
+        if !want {
+            audio.stop()
+            return
+        }
+        guard !audio.isRunning, !beat.starting, beat.retryAt < Date() else { return }
+        beat.starting = true
+        Task {
+            do {
+                try await audio.start()
+            } catch {
+                beat.retryAt = Date().addingTimeInterval(15)
+                if !CGPreflightScreenCaptureAccess() { beatPermissionMissing() }
+            }
+            beat.starting = false
+            updateBeatCapture()  // things may have changed while starting
+        }
+    }
+
+    private func sendBeat(_ json: String) {
+        guard !paused else { return }
+        layers.values.forEach { $0.sendBeat(json) }
+    }
+
+    private func beatPermissionMissing() {
+        UserDefaults.standard.set(false, forKey: "beatSync")
+        audio.stop()
+        let alert = NSAlert()
+        alert.messageText = "Sync to the Beat needs Screen Recording"
+        alert.informativeText = """
+            Spotify Wallpaper listens to Spotify's sound to find the beat; macOS files that under screen recording. \
+            Nothing is recorded or saved.
+
+            Turn on Spotify Wallpaper in System Settings › Privacy & Security › Screen & System Audio Recording, \
+            then choose Sync to the Beat again (macOS may ask you to reopen the app first).
+            """
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Not Now")
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn,
+           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }

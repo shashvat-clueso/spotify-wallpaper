@@ -4,15 +4,21 @@ import WebKit
 /// Serves everything the web views load from one origin, sw://app/…
 ///   /template/<id>/<file>   template files (user folder overrides built-ins)
 ///   /runtime/<file>         the shared template runtime
-///   /ui/<file>              the Customize window
+///   /ui/<file>              the app's own windows (Home, History Wall, Builder…)
 ///   /cover/<anything>       the current track's cover art
 ///   /coverblur/<px>/<sat>/…  the cover blurred (and saturated) once, so templates never blur it live
 ///   /font/<file>            a font from the system font folders
+///   /history/<YYYY-MM>/<file>.jpg  a saved wallpaper from the listening history (nothing else in that folder)
+///   /thumb/<templateID>.jpg?v=…  a template's thumbnail with the current song, drawn on request (ThumbnailService)
 @MainActor
 final class SchemeHandler: NSObject, WKURLSchemeHandler {
     private let paths: Paths
     private let store: TemplateStore
     var cover: () -> Data? = { nil }
+    /// Draws (or reads from the cache) a template's thumbnail. Set by the app once ThumbnailService exists.
+    var thumbnail: ((String) async -> Data?)?
+    /// Thumbnail requests still being drawn; WebKit may stop one (an <img> scrolled away), after which it mustn't be answered.
+    private var pending = Set<ObjectIdentifier>()
 
     private static let fontDirs = ["/System/Library/Fonts", "/System/Library/Fonts/Supplemental", "/Library/Fonts",
                                    NSHomeDirectory() + "/Library/Fonts"]
@@ -28,6 +34,17 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         var data: Data?
         var mime = Self.mime(url.pathExtension)
 
+        if parts.first == "thumb", parts.count == 2, let thumbnail {
+            let id = (parts[1] as NSString).deletingPathExtension, key = ObjectIdentifier(task as AnyObject)
+            pending.insert(key)
+            Task {
+                let jpeg = await thumbnail(id)
+                guard self.pending.remove(key) != nil else { return }
+                self.respond(task, url: url, data: jpeg, mime: "image/jpeg")
+            }
+            return
+        }
+
         switch parts.first {
         case "template" where parts.count >= 3:
             if let t = store.template(parts[1]) { data = read(t.dir, parts[2...]) }
@@ -40,6 +57,8 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             let source = cover() ?? (try? Data(contentsOf: paths.web.appendingPathComponent("ui/sample-cover.jpg")))
             if let source { data = blurredCover(source, radius: Double(parts[1]) ?? 80, saturation: Double(parts[2]) ?? 1) }
             mime = "image/jpeg"
+        case "history" where parts.count == 3 && url.pathExtension.lowercased() == "jpg":
+            data = read(HistoryStore.directory(paths), parts[1...])
         case "font" where parts.count == 2:
             for dir in Self.fontDirs where data == nil {
                 data = read(URL(fileURLWithPath: dir), parts[1...])
@@ -48,6 +67,10 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             break
         }
 
+        respond(task, url: url, data: data, mime: mime)
+    }
+
+    private func respond(_ task: WKURLSchemeTask, url: URL, data: Data?, mime: String) {
         let status = data == nil ? 404 : 200
         let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1",
                                        headerFields: ["Content-Type": mime, "Cache-Control": "no-store",
@@ -57,7 +80,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         task.didFinish()
     }
 
-    func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
+    func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) { pending.remove(ObjectIdentifier(task as AnyObject)) }
 
     private var blurCache: [String: Data] = [:]
     private let ciContext = CIContext(options: [.useSoftwareRenderer: false])

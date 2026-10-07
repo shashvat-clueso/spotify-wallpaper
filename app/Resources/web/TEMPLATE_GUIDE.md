@@ -7,12 +7,12 @@ A template is a folder with two files:
 
 ```
 my-template/
-  manifest.json   name, description and the settings shown in the Customize window
+  manifest.json   name, description, category and the settings shown in Spotify Wallpaper's inspector
   index.html      the wallpaper: plain HTML + CSS (+ optional JS)
 ```
 
 Put it in this folder (`~/Library/Application Support/Spotify Wallpaper/Templates`). The easiest start is
-**Customize → pick a template → Duplicate & edit code**. While a custom template is being edited, the preview and
+**Open Spotify Wallpaper → pick a template → ⋯ → Duplicate & edit code**. While a custom template is being edited, the preview and
 the wallpaper reload every time you save.
 
 Each template runs in two ways:
@@ -57,6 +57,18 @@ Use `vmin`/`vw`/`vh` units so it adapts to both laptop and ultrawide screens.
 | `lyrics.lines` `lyrics.index` | everything, for custom JS |
 | `lyrics.lineProgress` | 0–1 through the current line |
 | `lyrics.hasLyrics` `lyrics.synced` `lyrics.isInstrumental` | flags |
+| `lyrics.translation` | the current line's translation ("" when there's none) |
+| `lyrics.hasTranslation` | true when the song's lyrics come with translations |
+| `lyrics.singer` | who sings the current line in a duet: `A`, `B` or `both` ("" otherwise) |
+| `lyrics.singers` `lyrics.isDuet` | the duet's names in voice order A, B (empty if it isn't one), and a flag |
+| `lyrics.lines[n].translation` `lyrics.lines[n].singer` | the same, per line |
+| `track.genre` | the artist's genre, e.g. `Alternative` ("" when unknown) |
+| `weather.condition` | `clear`, `clouds`, `rain`, `snow`, `fog` or `storm`; `weather` is missing when the app doesn't know |
+| `weather.temp` / `weather.tempC` / `weather.tempF` | `14°` in the unit your region uses / Celsius / Fahrenheit |
+| `weather.temperature` `weather.isDay` `weather.sunrise` `weather.sunset` | raw values (°C; times in ms since 1970) |
+| `time.dayPhase` | `night`, `dawn`, `day` or `dusk`, from today's sunrise and sunset when known, else the clock |
+| `time.sunProgress` | 0–1 from sunrise to sunset (0 before, 1 after) |
+| `focus` | true while you share your screen or a Focus is on; lyrics hide (see below) |
 | `colors.vibrant` `colors.dominant` `colors.card` `colors.deep` `colors.dark` `colors.light` `colors.muted` `colors.paper` `colors.onDominant` | colors from the cover |
 | `colors.palette` | the 6 main cover colors |
 | `time.song` / `time.line` | seconds into the song / into the current line |
@@ -87,7 +99,22 @@ Time-based variables, updated every frame **only if your CSS uses them** (each c
 the app, as a background. Use it instead of `filter: blur()` on the cover: it costs nothing per frame.
 
 Classes on `<html>`: `is-playing`, `has-lyrics`, `synced`, `instrumental`, `ultrawide`, and `param-<key>` for every
-true bool setting.
+true bool setting. Plus, for the moment you're in (kept up to date on the live layer):
+
+- `sw-phase-night` / `sw-phase-dawn` / `sw-phase-day` / `sw-phase-dusk`: the time of day
+- `sw-weather-<condition>`, e.g. `sw-weather-rain` (only when the weather is known)
+- `sw-duet` while the song is a duet
+- `sw-focus` while lyrics should stay private: `<lyrics-block>` and anything marked `data-lyrics` fade out by default.
+  Use `.sw-focus` to show something else instead, or override the default for a template that has no private text.
+
+Fields the app doesn't send (older versions, the preview, no location access) are simply missing, so treat every one
+of them as optional.
+
+**Beat sync.** When beat sync is on, the live layer also gets `--beat`, a pulse that jumps to each beat's strength
+(0–1) and fades back to 0 in about half a second, and `--level`, the music's loudness (0–1). Like the time-based
+variables they're only updated if your CSS uses them, and they stay 0 in stills and when beat sync is off, so use them
+for small touches: `transform: scale(calc(1 + var(--beat) * 0.01))`. In JavaScript, `Wallpaper.on("beat", (b) => …)`
+runs on each beat with `{ strength, bpm, last, level }`, and `Wallpaper.beat` always holds the latest values.
 
 ## Components
 
@@ -96,6 +123,10 @@ true bool setting.
   (distance from the current line) for fades like `opacity: calc(1 - var(--dist) * .2)`. Instrumental gaps and the
   intro before the first lyric show the `empty` text with a `.gap` class.
   `flow` grows with its lines; `top` and `center` scroll inside a fixed height (give it a height).
+  Add `translations` to show each line's translation under it as `<span class="tr">` (smaller and dimmer by default),
+  and `duet` to lay a duet out like a conversation: voice A on the left, B on the right, both together centered. Each
+  sung line has `data-singer="A|B|both"` for your own styling. Both can be bound to settings:
+  `data-attr-translations="params.translations" data-attr-duet="params.duet"` (`"false"` turns them off).
 - `<fit-text max-lines="2" min="4vmin" max="15vmin">` shrinks or grows its text to fit its box.
 - `<swatch-row count="5" labels>` shows cover colors (`.chip`, `.hex`).
 - `<wave-form bars="56">` draws a waveform that changes with every line (`.bar`, uses `currentColor`).
@@ -117,7 +148,8 @@ true bool setting.
 ```json
 {
   "name": "My Template",
-  "description": "Shown in the Customize window.",
+  "description": "Shown in the gallery and the template's sheet.",
+  "category": "calm",
   "params": [
     { "key": "accent", "type": "color", "label": "Accent", "default": "auto:vibrant" },
     { "key": "size", "type": "number", "label": "Lyric size", "min": 2, "max": 8, "step": 0.1, "unit": "vmin", "default": 4 },
@@ -131,12 +163,18 @@ true bool setting.
 }
 ```
 
+`category` files the template in the gallery: `lyrics`, `painting`, `print` (Print & paper), `objects` or `calm`.
+Without one it shows under Yours. Color params appear as swatches (the auto colors, the cover's palette and a custom
+picker), short selects and bools as segmented controls, numbers as sliders and fonts as a menu; the first few show up
+front and the rest under "More settings".
+
 Colors can default to `auto:<name>` (any color name above), so they follow each song's cover. Numbers with a `unit`
 become CSS values directly: `font-size: var(--param-size)`.
 
 Fonts: SF Pro, SF Pro Variable (supports `font-stretch: 30%–150%` for compressed and expanded widths),
 SF Pro Rounded, SF Mono, New York, Helvetica Neue, Avenir Next, Futura, Gill Sans, Optima, Didot, Bodoni 72,
-Baskerville, Georgia, American Typewriter, Courier New, Snell Roundhand, Marker Felt. A `text` param can also hold
+Baskerville, Georgia, American Typewriter, Courier New, Snell Roundhand, Marker Felt, and the handwriting faces
+Bradley Hand, Noteworthy and Chalkboard SE. A `text` param can also hold
 any installed font's name.
 
 ## Custom JavaScript
@@ -150,6 +188,7 @@ Wallpaper.on("frame", (ctx) => { /* live layer: every frame; only add this if yo
 Wallpaper.on("track", (ctx) => { /* live layer: a new song started */ });
 Wallpaper.on("pause", () => { /* live layer: the desktop got covered; stop everything */ });
 Wallpaper.on("resume", () => { /* live layer: the desktop is visible again */ });
+Wallpaper.on("beat", (b) => { /* live layer, beat sync on: a beat landed. b = { strength, bpm, last, level } */ });
 ```
 
 `Wallpaper.live` is true on the animated layer and false while a still is rendered, `Wallpaper.paused` is true while
