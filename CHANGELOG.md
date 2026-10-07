@@ -18,6 +18,7 @@ All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](
 - **Settings** (⌘,): a tab in the app's window for everything app-wide (launch at login, frame rate, Focus Mode and
   screen sharing, weather, beat sync, lyric card size, history, templates folder, updates, keyboard shortcuts). The menu
   bar menu now holds only everyday actions.
+- The Template Builder and What's New use the same frosted dark look as the app's window.
 - **Three new templates:** **Cassette** (a mixtape whose reels wind through the song, with the current line handwritten
   on the label), **Liner Notes** (the CD booklet, with the whole song typeset beside the cover) and **Weather & Time**
   (a sky that follows the time of day and your local weather, with rain running down the glass).
@@ -51,6 +52,7 @@ All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](
   Bradley Hand, Noteworthy and Chalkboard SE. See TEMPLATE_GUIDE.
 
 ### Changed
+- What's New no longer breaks a wrapped list item into separate paragraphs.
 - Weather uses your approximate location (asked once); turn it off with "Use Weather" in the menu.
 
 ## 1.4.1 — 2026-10-07

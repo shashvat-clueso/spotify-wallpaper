@@ -4,13 +4,15 @@ import WebKit
 /// "What's New": the changelog (CHANGELOG.md, bundled at build time), shown from the menu and once after each update.
 @MainActor
 final class WhatsNewWindowController: NSWindowController, WKScriptMessageHandler, NSWindowDelegate {
-    private static let barHeight: CGFloat = 44
+    private static let barHeight: CGFloat = 52
 
     init(engine: Engine) {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 760),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
         window.title = "What's New"
+        window.appearance = NSAppearance(named: .darkAqua)  // the page is always the frosted dark theme, like Home
+        window.backgroundColor = NSColor(calibratedRed: 0.08, green: 0.08, blue: 0.1, alpha: 1)
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.minSize = NSSize(width: 520, height: 420)
