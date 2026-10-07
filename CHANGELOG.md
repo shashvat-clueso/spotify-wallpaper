@@ -5,6 +5,16 @@ All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](
 ## 1.5.0 — 2026-10-07
 
 ### Added
+- **Spotify Wallpaper has a home.** "Open Spotify Wallpaper…" (⌘O, or open the app again from Finder or the Dock)
+  shows your wallpaper live with its settings beside it as colour swatches, segmented controls and sliders, plus a
+  shelf of recent and favourite templates. It replaces the Customize window and the menu's Template list.
+- **Browse all:** every template in a gallery grouped by feel (Lyrics, Painting, Print & paper, Objects, Calm, Yours),
+  with search, thumbnails of the song that's playing, and a record-crate view you flip through with the arrow keys.
+- **A template per display:** the Displays tab shows your screens as they're arranged; drop a template onto one to give
+  that screen its own wallpaper. It's remembered per display, even after unplugging it.
+- **Quick Switcher** (⌃⌥⌘W): a search panel over your desktop to switch templates and run actions (Share Lyric Card,
+  Focus Mode, lyrics ±0.5 s, Pause, History Wall). ↩ puts a template on every screen, ⌥↩ on the screen under the pointer.
+- The History Wall and the lyrics source and timing controls now live in tabs in the app's window.
 - **Three new templates:** **Cassette** (a mixtape whose reels wind through the song, with the current line handwritten
   on the label), **Liner Notes** (the CD booklet, with the whole song typeset beside the cover) and **Weather & Time**
   (a sky that follows the time of day and your local weather, with rain running down the glass).
