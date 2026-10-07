@@ -8,6 +8,7 @@ import WebKit
 ///   /cover/<anything>       the current track's cover art
 ///   /coverblur/<px>/<sat>/…  the cover blurred (and saturated) once, so templates never blur it live
 ///   /font/<file>            a font from the system font folders
+///   /history/<YYYY-MM>/<file>.jpg  a saved wallpaper from the listening history (nothing else in that folder)
 @MainActor
 final class SchemeHandler: NSObject, WKURLSchemeHandler {
     private let paths: Paths
@@ -40,6 +41,8 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             let source = cover() ?? (try? Data(contentsOf: paths.web.appendingPathComponent("ui/sample-cover.jpg")))
             if let source { data = blurredCover(source, radius: Double(parts[1]) ?? 80, saturation: Double(parts[2]) ?? 1) }
             mime = "image/jpeg"
+        case "history" where parts.count == 3 && url.pathExtension.lowercased() == "jpg":
+            data = read(HistoryStore.directory(paths), parts[1...])
         case "font" where parts.count == 2:
             for dir in Self.fontDirs where data == nil {
                 data = read(URL(fileURLWithPath: dir), parts[1...])

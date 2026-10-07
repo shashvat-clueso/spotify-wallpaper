@@ -79,6 +79,7 @@ function select(id, reloadPreview) {
   $("activeBadge").hidden = !isActive;
   $("editCode").textContent = t.builtin ? "Duplicate & edit code" : t.builder ? "Open in Template Builder" : "Edit code";
   $("reset").hidden = !!t.builder || !t.params.length;
+  $("exportTpl").textContent = `Export “${t.name}”…`;
   renderParams();
   renderNowPlaying();
   reportTitlebarHoles();
@@ -237,6 +238,8 @@ $("editCode").onclick = () => {
   post(t.builder ? { type: "openBuilder", id: t.id } : { type: t.builtin ? "duplicate" : "openFolder", id: t.id });
 };
 $("openFolder").onclick = () => post({ type: "openFolder" });
+$("importTpl").onclick = () => post({ type: "importTemplate" });
+$("exportTpl").onclick = () => post({ type: "exportTemplate", id: S.selected });
 $("reload").onclick = () => post({ type: "reload" });
 
 post({ type: "ready" });
