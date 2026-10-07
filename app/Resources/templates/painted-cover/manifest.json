@@ -30,6 +30,10 @@
           "label": "Mixed (knife, sweeps, dry brush, impasto)"
         },
         {
+          "value": "genre",
+          "label": "Match the genre"
+        },
+        {
           "value": "knife",
           "label": "Knife only"
         },
@@ -91,6 +95,36 @@
       "type": "bool",
       "label": "Paint ridges on strokes",
       "default": true
+    },
+    {
+      "key": "paintWords",
+      "type": "bool",
+      "label": "Paint a word from each lyric line",
+      "default": true
+    },
+    {
+      "key": "beatSync",
+      "type": "bool",
+      "label": "Strokes land on the beat",
+      "default": true
+    },
+    {
+      "key": "wetness",
+      "type": "bool",
+      "label": "Fresh paint looks wet",
+      "default": true
+    },
+    {
+      "key": "timelapse",
+      "type": "bool",
+      "label": "Timelapse of the last painting before a new cover",
+      "default": true
+    },
+    {
+      "key": "memory",
+      "type": "bool",
+      "label": "Keep earlier songs around the edges",
+      "default": false
     },
     {
       "key": "font",

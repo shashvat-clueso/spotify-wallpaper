@@ -7,6 +7,8 @@
  *   studio.finish();                                    // paint everything queued right now (for stills)
  *   studio.knife / sweep / impasto / hatch / dry({ x, y, a, len, width, color })  // other kinds of mark, see below
  *   const cover = await Brush.cover(ctx.track.cover);   // cover.at(fx, fy) → [r, g, b] from the album art
+ *   studio.onDone = (st) => …;                          // optional: called as each stroke finishes in update()
+ *   Brush.LIGHT                                         // the light direction (radians, upper left) ridges use
  *
  * A stroke is a row of bristles dragged along a path. Each bristle has its own tint, width and amount of paint,
  * so strokes streak, run dry near the end and swell with "pressure" in the middle. Strokes move with an ease-in-out
@@ -328,7 +330,7 @@
         if (!strokes.length) return;
         begin();
         dt = clamp(dt, 0, 0.1);
-        strokes = strokes.filter((st) => st.advance(g, dt));
+        strokes = strokes.filter((st) => st.advance(g, dt) || (s.onDone && s.onDone(st), false));
         end();
       },
       finish() {
@@ -337,6 +339,9 @@
         strokes = [];
         end();
       },
+      /** Optional callback (stroke) → void, run when a stroke finishes painting during update() (not finish()). The
+       *  stroke object is what knife()/sweep()/… returned, so callers can tag it with their own data. */
+      onDone: null,
       clear() { strokes = []; },
       get busy() { return strokes.length; },
     };
@@ -388,5 +393,5 @@
     });
   }
 
-  window.Brush = { studio, cover, ease, rgb, mix, shade, css, lum, sat, rand, TAU };
+  window.Brush = { studio, cover, ease, rgb, mix, shade, css, lum, sat, rand, TAU, LIGHT };
 })();
