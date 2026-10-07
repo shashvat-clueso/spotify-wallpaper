@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import WebKit
 
 /// Two outputs per screen:
@@ -22,6 +23,8 @@ final class Engine {
     /// Which source(s) the current lyrics came from, for the menu.
     private(set) var lyricsSourceText = ""
     private var coverData: Data?
+    /// Identifies the cover image itself, so templates can tell "new song, same album art" from a new cover.
+    private var coverKey = ""
     private var colors: [String: Any] = Palette.extract(from: nil)
     private var loadedTrackID: String?
     private var loadingTrackID: String?
@@ -38,6 +41,10 @@ final class Engine {
     private var stillDebounce: Task<Void, Never>?
     private var latestTrack: Track?
     private var latestStamp: Double = 0
+    /// When Spotify first stopped reporting a track. Skipping or seeking can make a single reading come back empty,
+    /// so the wallpaper is only given back once nothing has played for `goneGrace` seconds.
+    private var goneSince: Date?
+    private static let goneGrace: TimeInterval = 5
 
     /// Called when the preview in the Customize window should get new state / a clock tick.
     var onStateChange: (() -> Void)?
@@ -87,9 +94,16 @@ final class Engine {
         schemeHandler.cover = { [weak self] in self?.coverData }
         // Spotify is read on its own thread; each reading lands here
         spotify.onUpdate = { [weak self] track, stamp in
-            self?.latestTrack = track
-            self?.latestStamp = stamp
-            self?.tick()
+            guard let self else { return }
+            if track == nil, self.latestTrack != nil {
+                let since = self.goneSince ?? Date()
+                self.goneSince = since
+                if Date().timeIntervalSince(since) < Self.goneGrace { return }  // probably a skip/seek blip: hold on
+            }
+            self.goneSince = nil
+            self.latestTrack = track
+            self.latestStamp = stamp
+            self.tick()
         }
         spotify.start()
         Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -206,6 +220,7 @@ final class Engine {
         async let found = lyricsService.candidates(for: t)
         let (c, cs) = await (cover, found)
         coverData = c
+        coverKey = c.map { SHA256.hash(data: $0).prefix(8).map { String(format: "%02x", $0) }.joined() } ?? ""
         colors = Palette.extract(from: c)
         candidates = cs
         loadedTrackID = t.id
@@ -297,7 +312,7 @@ final class Engine {
         let safeID = t.id.replacingOccurrences(of: "[^A-Za-z0-9]", with: "_", options: .regularExpression)
         return [
             "track": ["id": t.id, "title": t.title, "artist": t.artist, "album": t.album,
-                      "cover": "sw://app/cover/\(safeID).jpg", "duration": t.duration,
+                      "cover": "sw://app/cover/\(safeID).jpg", "coverKey": coverKey, "duration": t.duration,
                       "position": t.position, "isPlaying": t.isPlaying, "stamp": pollStamp],
             "lyrics": ["lines": lyrics.lines.map { ["t": $0.t, "text": $0.text] },
                        "index": lyrics.index(at: t.position), "synced": lyrics.synced],

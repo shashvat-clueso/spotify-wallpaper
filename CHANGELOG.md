@@ -2,6 +2,25 @@
 
 All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](https://semver.org).
 
+## 1.4.1 — 2026-10-07
+
+### Added
+- **More kinds of stroke in Painted Cover:** curved sweeps, raised impasto dabs, dry brush and hatching join the knife
+  slabs. A new **Strokes** setting mixes them (slabs and sweeps block in, dry brush models, impasto and hatching pick
+  out detail) or uses one kind throughout. The brush library gains `studio.sweep`, `studio.impasto`, `studio.hatch`
+  and `studio.dry`.
+
+### Changed
+- Painted Cover and Brushwork only start a new painting when the **cover** changes, so the next song from the same
+  album keeps painting the same canvas instead of starting over.
+- Painted Cover Wide: film grain sits on the song card only (on by default), never over the painting; the lyrics fill
+  whatever height the title leaves, so the "Lines after" setting is gone. Painted Cover's grain sits behind the
+  painting, on the background.
+
+### Fixed
+- Skipping or seeking a song sometimes put your own wallpaper back for a moment. A single empty reading from Spotify
+  no longer counts as "stopped"; your wallpaper comes back once nothing has played for about 5 seconds.
+
 ## 1.4.0 — 2026-10-04
 
 ### Added

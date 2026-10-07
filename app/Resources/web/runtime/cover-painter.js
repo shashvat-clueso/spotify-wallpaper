@@ -7,13 +7,17 @@
  *   <html data-layout="square">  the cover as a square beside the text (needs a .col element for the text)
  *   <html data-layout="wide">    the cover cropped to fill the screen, text on a solid .panel
  *
- * Params it reads: side, speed, detail ("grow" | "fixed"), level (1–3), ridge.
+ * Params it reads: side, speed, detail ("grow" | "fixed"), level (1–3), ridge, strokes.
+ * - strokes: "mixed" (knife slabs, curved sweeps, dry brush, impasto and hatching, each where it suits the cover),
+ *   or one kind throughout: "knife", "sweep", "dry", "impasto".
  * - grow: a new song starts as large slabs and gets finer as it plays; the still shows mid detail.
  * - Live layer: a new song is painted over the old one, coarse to fine. Each lyric line refines a band.
  */
 (function () {
   const B = Brush, rand = B.rand;
   const COUNTS = { square: [12, 26, 54], wide: [22, 46, 96] };  // strokes across the painting, per pass
+  // each kind's length/width relative to a knife stroke in the same cell
+  const SHAPE = { knife: [1, 1], sweep: [1.15, 0.95], dry: [1.1, 1], impasto: [0.55, 0.9], hatch: [0.6, 1] };
 
   let p, g, studio, W = 0, H = 0;
   let cov = null, region = null, layout = "square", side = "left", params = {};
@@ -49,6 +53,19 @@
   const toCover = (fx, fy) => [region.crop.x0 + fx * (region.crop.x1 - region.crop.x0), region.crop.y0 + fy * (region.crop.y1 - region.crop.y0)];
 
   // ---------- the three passes ----------
+  /** Which kind of mark a stroke is. Mixed: big slabs and sweeps block in, dry brush and sweeps model the middle,
+   *  and the finest pass is knife edges and hatching on edges, impasto and dry brush on detail. */
+  function pickKind(level, edge) {
+    const style = params.strokes || "mixed";
+    if (style !== "mixed") return SHAPE[style] ? style : "knife";
+    const r = Math.random();
+    if (level === 0) return r < 0.7 ? "knife" : "sweep";
+    if (level === 1) return r < 0.4 ? "knife" : r < 0.7 ? "sweep" : "dry";
+    if (edge) return r < 0.6 ? "knife" : "hatch";
+    return r < 0.45 ? "impasto" : r < 0.75 ? "dry" : "sweep";
+  }
+  const put = (s, o) => studio[s.kind]({ ...s, ...o });
+
   function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
   /** Knife strokes for one pass: one per grid cell (finer passes only where the cover has detail). */
@@ -75,9 +92,11 @@
         const w = Math.min(1, (gr.mag - 22) / 40);
         a = Math.atan2(Math.sin(flow) * (1 - w) + Math.sin(e) * w, Math.cos(flow) * (1 - w) + Math.cos(e) * w);
       }
-      const sizeK = [1, 0.95, 0.85][level];
-      out.push({ x: cx, y: cy, a: a + rand(-0.08, 0.08), len: cell * rand(1.6, 2.4) * sizeK, width: cell * rand(0.85, 1.1) * sizeK,
-        color: B.shade(color, rand(-5, 5)), ridge: params.ridge === false ? 0 : 1, level });
+      const sizeK = [1, 0.95, 0.85][level], kind = pickKind(level, gr.mag > 30), [lk, wk] = SHAPE[kind];
+      // sweeps bow the way the flow field is turning here, so neighbouring curves agree
+      const bend = (p.noise(fx * 3, fy * 3, 4) - 0.5) * 0.8;
+      out.push({ kind, x: cx, y: cy, a: a + rand(-0.08, 0.08), len: cell * rand(1.6, 2.4) * sizeK * lk, width: cell * rand(0.85, 1.1) * sizeK * wk,
+        bend, color: B.shade(color, rand(-5, 5)), ridge: params.ridge === false ? 0 : 1, level });
     }
     return shuffle(out);
   }
@@ -103,13 +122,13 @@
       underpaint();
       for (let k = 0; k < 3; k++) {
         shown[k] = Math.round(passes[k].length * t[k]);
-        for (let i = 0; i < shown[k]; i++) studio.knife(passes[k][i]);
+        for (let i = 0; i < shown[k]; i++) put(passes[k][i]);
         studio.finish();
       }
     } else {
       // the new cover goes on over the old one: the large slabs first, spread over a few seconds
       const n = passes[0].length, spread = 7;
-      passes[0].forEach((s, i) => studio.knife({ ...s, delay: (i / n) * spread + rand(0.4), duration: rand(0.7, 1.2) }));
+      passes[0].forEach((s, i) => put(s, { delay: (i / n) * spread + rand(0.4), duration: rand(0.7, 1.2) }));
       shown = [n, 0, 0];
       quietUntil = performance.now() + (spread + 1) * 1000 * studio.tempo;
     }
@@ -135,7 +154,7 @@
     let budget = 3;
     for (let k = 1; k < 3 && budget > 0; k++) {
       const want = Math.round(passes[k].length * t[k]);
-      while (shown[k] < want && budget-- > 0) studio.knife({ ...passes[k][shown[k]++], duration: rand(0.8, 1.4) });
+      while (shown[k] < want && budget-- > 0) put(passes[k][shown[k]++], { duration: rand(0.8, 1.4) });
     }
   }
 
@@ -145,7 +164,7 @@
     const level = t[2] > 0.5 ? 2 : t[1] > 0.5 ? 2 : 1;
     const bh = region.h * rand(0.08, 0.16), y0 = region.y + rand(0, region.h - bh);
     for (const s of buildPass(level, [y0, y0 + bh])) {
-      studio.knife({ ...s, delay: ((s.x - region.x) / region.w) * 1.6, duration: rand(0.5, 0.9) });
+      put(s, { delay: ((s.x - region.x) / region.w) * 1.6, duration: rand(0.5, 0.9) });
     }
   }
 
@@ -154,7 +173,9 @@
     layout = document.documentElement.dataset.layout || "square";
     side = params.side || "left";
     document.documentElement.dataset.side = side;
-    const key = [ctx.track.id, ctx.track.cover, layout, side, params.detail, params.level, params.ridge, innerWidth, innerHeight].join("|");
+    // keyed on the cover image, not the song: the next track off the same album keeps painting the same canvas
+    const key = [ctx.track.coverKey || ctx.track.cover, layout, side, params.detail, params.level, params.ridge, params.strokes,
+      innerWidth, innerHeight].join("|");
     if (key === paintKey) return null;
     const sameSize = paintKey.endsWith("|" + innerWidth + "|" + innerHeight);
     paintKey = key;

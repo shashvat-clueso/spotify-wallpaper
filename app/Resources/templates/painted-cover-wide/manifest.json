@@ -1,6 +1,6 @@
 {
   "name": "Painted Cover Wide",
-  "description": "The cover repainted full-screen as a coarse knife painting in sharp, flat strokes, with the song on a solid panel in Helvetica. Detail grows as the song plays.",
+  "description": "The cover repainted full-screen as a coarse painting in knife slabs, curved sweeps, dry brush and impasto, with the song on a solid panel in Helvetica. Detail grows as the song plays.",
   "author": "Built-in",
   "params": [
     {
@@ -16,6 +16,34 @@
         {
           "value": "right",
           "label": "Right"
+        }
+      ]
+    },
+    {
+      "key": "strokes",
+      "type": "select",
+      "label": "Strokes",
+      "default": "mixed",
+      "options": [
+        {
+          "value": "mixed",
+          "label": "Mixed (knife, sweeps, dry brush, impasto)"
+        },
+        {
+          "value": "knife",
+          "label": "Knife only"
+        },
+        {
+          "value": "sweep",
+          "label": "Curved sweeps"
+        },
+        {
+          "value": "dry",
+          "label": "Dry brush"
+        },
+        {
+          "value": "impasto",
+          "label": "Impasto dabs"
         }
       ]
     },
@@ -107,18 +135,10 @@
       "default": 1
     },
     {
-      "key": "linesAfter",
-      "type": "int",
-      "label": "Lines after",
-      "min": 0,
-      "max": 6,
-      "default": 3
-    },
-    {
       "key": "grain",
       "type": "bool",
-      "label": "Grain",
-      "default": false
+      "label": "Film grain on the card",
+      "default": true
     }
   ]
 }

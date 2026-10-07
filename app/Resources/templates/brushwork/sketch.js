@@ -405,7 +405,8 @@
     side = ctx.params.side || "left";
     document.documentElement.dataset.style = style;
     document.documentElement.dataset.side = side;
-    const key = [ctx.track.id, ctx.track.cover, style, side, innerWidth, innerHeight].join("|");
+    // keyed on the cover image, not the song: the next track off the same album keeps the painting going
+    const key = [ctx.track.coverKey || ctx.track.cover, style, side, innerWidth, innerHeight].join("|");
     if (key === paintKey) return null;
     const newSize = !paintKey.endsWith([innerWidth, innerHeight].join("|"));
     paintKey = key;

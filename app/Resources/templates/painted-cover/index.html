@@ -9,7 +9,7 @@
 <script src="/runtime/cover-painter.js"></script>
 <style>
   body { background: var(--param-field); color: var(--param-ink); font-family: var(--param-font); overflow: hidden; }
-  canvas.paint { position: fixed; inset: 0; width: 100vw !important; height: 100vh !important; z-index: 0; }
+  canvas.paint { position: fixed; inset: 0; width: 100vw !important; height: 100vh !important; z-index: 1; }
 
   /* the painting is a square of min(84vh, 52vw) on the far side, 6vw from the edge (cover-painter.js) */
   .col {
@@ -33,7 +33,8 @@
   lyrics-block .current { font-size: var(--param-lyricSize); font-weight: 700; letter-spacing: -0.025em; line-height: 1.08; opacity: 1; }
   .sw-live lyrics-block .lines { transition-duration: 0.7s; transition-timing-function: cubic-bezier(.3, .1, .2, 1); }
   .empty { font-size: 2.6vmin; font-weight: 500; opacity: 0.6; }
-  .sw-grain { opacity: 0.12; z-index: 3; }
+  /* grain on the background only: it sits under the canvas, so the painting covers it */
+  .sw-grain { position: fixed; opacity: 0.12; z-index: 0; }
 </style>
 </head>
 <body>
