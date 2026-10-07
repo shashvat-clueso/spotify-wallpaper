@@ -82,6 +82,18 @@
       "default": true
     },
     {
+      "key": "duet",
+      "type": "bool",
+      "label": "Duet layout",
+      "default": true
+    },
+    {
+      "key": "translations",
+      "type": "bool",
+      "label": "Show translations",
+      "default": true
+    },
+    {
       "key": "drift",
       "type": "bool",
       "label": "Moving background",

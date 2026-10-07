@@ -1,0 +1,18 @@
+{
+  "name": "Cassette",
+  "description": "A mixtape: the cover on its case insert, the title and the current lyric handwritten on the label, and reels that wind through the song.",
+  "author": "Built-in",
+  "params": [
+    { "key": "background", "type": "color", "label": "Background", "default": "auto:deep" },
+    { "key": "shell", "type": "color", "label": "Shell", "default": "auto:dark" },
+    { "key": "label", "type": "color", "label": "Label paper", "default": "auto:paper" },
+    { "key": "accent", "type": "color", "label": "Label stripe", "default": "auto:vibrant" },
+    { "key": "ink", "type": "color", "label": "Pen", "default": "#22306B" },
+    { "key": "hand", "type": "font", "label": "Handwriting", "default": "Bradley Hand" },
+    { "key": "jcard", "type": "bool", "label": "Case insert", "default": true },
+    { "key": "showNext", "type": "bool", "label": "Next line", "default": true },
+    { "key": "counter", "type": "bool", "label": "Tape counter", "default": true },
+    { "key": "tilt", "type": "number", "label": "Tilt", "min": -8, "max": 8, "step": 0.5, "unit": "deg", "default": -2 },
+    { "key": "grain", "type": "bool", "label": "Film grain", "default": true }
+  ]
+}

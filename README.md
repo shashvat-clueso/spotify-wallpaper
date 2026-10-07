@@ -11,6 +11,9 @@ with sliders or rewrite completely.
   <img src="docs/screenshots/template-visualizer.jpg" width="49%" alt="Visualizer template">
   <img src="docs/screenshots/template-poster.jpg" width="49%" alt="Album Poster template">
   <img src="docs/screenshots/template-glow.jpg" width="49%" alt="Glow template">
+  <img src="docs/screenshots/template-cassette.jpg" width="49%" alt="Cassette template">
+  <img src="docs/screenshots/template-liner-notes.jpg" width="49%" alt="Liner Notes template">
+  <img src="docs/screenshots/template-weather.jpg" width="49%" alt="Weather &amp; Time template">
 </p>
 
 ## Features
@@ -24,11 +27,15 @@ with sliders or rewrite completely.
 - **The real wallpaper stays in sync.** On every track change the app also sets your actual wallpaper to a still of
   the song, so the lock screen and Mission Control match. When you quit, or nothing is playing, your own wallpaper
   comes back.
-- **Eleven built-in templates:** Lyric Card (Spotify lyric cards), Album Poster (minimalist posters with color swatches),
+- **Fourteen built-in templates:** Lyric Card (Spotify lyric cards), Album Poster (minimalist posters with color swatches),
   Minimal, Glow (Apple Music style), Vinyl (a spinning record with the cover as its label), Typewriter (lyrics type
   themselves out), Lock Screen (big live clock), Visualizer (bars in the cover's colors), Brushwork (a living oil
   painting made from the cover with p5.js brushes) and Painted Cover / Painted Cover Wide (the cover repainted in
-  sharp knife strokes, with the song in Helvetica).
+  sharp knife strokes, with the song in Helvetica), Cassette (a mixtape whose reels wind through the song, with the
+  current line handwritten on its label), Liner Notes (the CD booklet: the whole song typeset beside the cover) and
+  Weather & Time (a sky that follows your time of day and weather, with rain running down the glass).
+- **Duets and translations:** templates can lay out duets voice by voice and show translated lyrics under each line,
+  and lyrics hide while you share your screen.
 - **Light on your Mac:** about 1–5% CPU while animating at 60 fps. Lines change on timers set for their exact
   timestamps, animations run on the GPU, the cover is blurred once per song, and everything pauses when windows cover
   the desktop.

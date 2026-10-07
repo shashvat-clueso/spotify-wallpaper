@@ -1,0 +1,26 @@
+{
+  "name": "Weather & Time",
+  "description": "A sky that follows your day and your weather: warm at dusk, blue at night, rain running down the glass the song sits behind.",
+  "author": "Built-in",
+  "params": [
+    { "key": "weather", "type": "select", "label": "Weather", "default": "auto",
+      "options": [{ "value": "auto", "label": "Where you are" }, { "value": "clear", "label": "Clear" }, { "value": "clouds", "label": "Cloudy" },
+        { "value": "rain", "label": "Rain" }, { "value": "storm", "label": "Storm" }, { "value": "snow", "label": "Snow" }, { "value": "fog", "label": "Fog" }] },
+    { "key": "phase", "type": "select", "label": "Time of day", "default": "auto",
+      "options": [{ "value": "auto", "label": "Follow the clock" }, { "value": "dawn", "label": "Dawn" }, { "value": "day", "label": "Day" },
+        { "value": "dusk", "label": "Dusk" }, { "value": "night", "label": "Night" }] },
+    { "key": "tint", "type": "number", "label": "Cover colors in the sky", "min": 0, "max": 0.8, "step": 0.01, "default": 0.22 },
+    { "key": "glass", "type": "color", "label": "Glass tint", "default": "auto:deep" },
+    { "key": "font", "type": "font", "label": "Font", "default": "SF Pro" },
+    { "key": "lyricSize", "type": "number", "label": "Lyric size", "min": 2.4, "max": 7, "step": 0.1, "unit": "vmin", "default": 4.2 },
+    { "key": "linesAfter", "type": "int", "label": "Lines after", "min": 0, "max": 5, "default": 2 },
+    { "key": "showClock", "type": "bool", "label": "Clock", "default": true },
+    { "key": "clock", "type": "select", "label": "Clock style", "default": "12", "options": [{ "value": "12", "label": "12-hour" }, { "value": "24", "label": "24-hour" }] },
+    { "key": "showTemp", "type": "bool", "label": "Temperature", "default": true },
+    { "key": "effects", "type": "bool", "label": "Animated weather", "default": true },
+    { "key": "horizon", "type": "bool", "label": "Horizon", "default": true },
+    { "key": "translations", "type": "bool", "label": "Show translations", "default": true },
+    { "key": "duet", "type": "bool", "label": "Duet layout", "default": false },
+    { "key": "grain", "type": "bool", "label": "Film grain", "default": true }
+  ]
+}
