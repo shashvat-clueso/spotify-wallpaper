@@ -2,6 +2,7 @@
   "name": "Painted Cover Wide",
   "description": "The cover repainted full-screen as a coarse painting in knife slabs, curved sweeps, dry brush and impasto, with the song on a solid panel in Helvetica. Detail grows as the song plays.",
   "author": "Built-in",
+  "category": "painting",
   "params": [
     {
       "key": "side",

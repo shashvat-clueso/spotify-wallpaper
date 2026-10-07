@@ -2,7 +2,10 @@
 
 const S = { entries: [], enabled: true, query: "", month: "", shown: [], open: -1, busy: false };
 const $ = (id) => document.getElementById(id);
-const post = (msg) => window.webkit?.messageHandlers?.app?.postMessage(msg);
+// Embedded in Home's History tab (same origin): messages go through Home, which relays them to the app.
+const EMBED = (() => { try { return window.parent !== window && !!window.parent.HomeBridge; } catch (e) { return false; } })();
+if (EMBED) document.documentElement.classList.add("embed");
+const post = (msg) => (EMBED ? window.parent.HomeBridge.history(msg) : window.webkit?.messageHandlers?.app?.postMessage(msg));
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const P = (d) => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const ICON = {
@@ -41,6 +44,7 @@ window.App = {
 // ---------- title bar: tell the app which parts are controls (the rest drags the window) ----------
 
 function reportTitlebarHoles() {
+  if (EMBED) return;  // Home owns the title bar
   const els = [...$("topbar").querySelectorAll("button, .field")];
   if (!$("viewer").hidden) els.push($("vClose"));
   post({ type: "titlebarHoles", rects: els.map((el) => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; }) });
@@ -79,7 +83,7 @@ function render() {
     if (!total) {
       box.append(h("h3", null, "No wallpapers yet"),
         h("p", null, S.enabled ? "Every song you play gets its wallpaper saved here, one per song. Play something in Spotify."
-          : "History is off. Turn on “Keep a History of Wallpapers” in the menu bar to start collecting."));
+          : "History is off. Turn on “Keep a History of Wallpapers” in the menu bar menu to start collecting."));
     } else {
       box.append(h("h3", null, "Nothing matches"), h("p", null, "Try another word, or pick All months."));
     }

@@ -7,12 +7,12 @@ A template is a folder with two files:
 
 ```
 my-template/
-  manifest.json   name, description and the settings shown in the Customize window
+  manifest.json   name, description, category and the settings shown in Spotify Wallpaper's inspector
   index.html      the wallpaper: plain HTML + CSS (+ optional JS)
 ```
 
 Put it in this folder (`~/Library/Application Support/Spotify Wallpaper/Templates`). The easiest start is
-**Customize → pick a template → Duplicate & edit code**. While a custom template is being edited, the preview and
+**Open Spotify Wallpaper → pick a template → ⋯ → Duplicate & edit code**. While a custom template is being edited, the preview and
 the wallpaper reload every time you save.
 
 Each template runs in two ways:
@@ -148,7 +148,8 @@ runs on each beat with `{ strength, bpm, last, level }`, and `Wallpaper.beat` al
 ```json
 {
   "name": "My Template",
-  "description": "Shown in the Customize window.",
+  "description": "Shown in the gallery and the template's sheet.",
+  "category": "calm",
   "params": [
     { "key": "accent", "type": "color", "label": "Accent", "default": "auto:vibrant" },
     { "key": "size", "type": "number", "label": "Lyric size", "min": 2, "max": 8, "step": 0.1, "unit": "vmin", "default": 4 },
@@ -161,6 +162,11 @@ runs on each beat with `{ strength, bpm, last, level }`, and `Wallpaper.beat` al
   ]
 }
 ```
+
+`category` files the template in the gallery: `lyrics`, `painting`, `print` (Print & paper), `objects` or `calm`.
+Without one it shows under Yours. Color params appear as swatches (the auto colors, the cover's palette and a custom
+picker), short selects and bools as segmented controls, numbers as sliders and fonts as a menu; the first few show up
+front and the rest under "More settings".
 
 Colors can default to `auto:<name>` (any color name above), so they follow each song's cover. Numbers with a `unit`
 become CSS values directly: `font-size: var(--param-size)`.

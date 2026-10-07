@@ -2,6 +2,7 @@
   "name": "Lyric Card",
   "description": "A Spotify-style lyric card, colored from the cover, floating over a blurred backdrop.",
   "author": "Built-in",
+  "category": "lyrics",
   "params": [
     {
       "key": "cardColor",

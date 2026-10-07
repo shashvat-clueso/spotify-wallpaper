@@ -44,7 +44,7 @@ with sliders or rewrite completely.
   cover, images, shapes, a vinyl record, a progress bar, a waveform and color swatches on a live canvas; style them;
   add motion; then **Edit Code** to keep going in HTML/CSS.
 - **Customizable:** each template's settings (colors, fonts, sizes, lines shown, blur, grain, animation) appear in
-  the Customize window with a live preview. You can also duplicate a template and edit its HTML/CSS directly; it
+  the app's Home window next to a live preview. You can also duplicate a template and edit its HTML/CSS directly; it
   reloads as you save.
 - **No login or API key.** It reads the Spotify desktop app directly.
 
@@ -77,10 +77,9 @@ Everything is in the ♪ menu bar icon:
 
 | Menu item | What it does |
 |---|---|
-| **Template** | Switch between templates |
-| **Customize… (⌘,)** | Gallery, live preview and every setting of each template |
+| **Open Spotify Wallpaper… (⌘O)** | Home: a live preview with each template's settings, a shelf of recent and favourite templates, the full gallery, a template per display, the History Wall, and lyrics source and timing. Also opens when you open the app again from Finder or the Dock |
 | **Template Builder…** | Design a new template visually, no code |
-| **Lyrics** | Which sources were used, or pick one source. Nudge timing earlier or later (remembered per song), or search again |
+| **Lyrics** | Nudge this song's timing earlier or later (remembered per song). Pick the source or search again in Home's Lyrics tab |
 | **Refresh Rate** | Display maximum, 60, 30 or 15 fps for the animation. Lyric timing is exact at any rate |
 | **Pause Wallpaper** | Put your normal wallpaper back until you resume |
 | **Open Templates Folder** | Where your own templates live |
@@ -92,7 +91,7 @@ Everything is in the ♪ menu bar icon:
 
 ### Without code: the Template Builder
 
-Open **Template Builder…** from the menu, or **＋** in Customize, and start from a layout (Blank, Spotlight, Glass Card,
+Open **Template Builder…** from the menu, or **Builder** in the app's window, and start from a layout (Blank, Spotlight, Glass Card,
 Headline, Record Room, Analog Clock, Clock).
 
 - **Tools** (bar under the canvas): Move (V), Text (T), Rectangle (R), Ellipse (O), Line (L), Triangle, Star,
@@ -133,7 +132,7 @@ ultrawide. Designs are saved as normal templates in the templates folder, so the
 ### With code
 
 A template is a folder with a `manifest.json` (name and settings) and an `index.html`. The quickest start is
-**Customize → pick a template → Duplicate & edit code**. That copies it to
+**Open Spotify Wallpaper → pick a template → ⋯ → Duplicate & edit code**. That copies it to
 `~/Library/Application Support/Spotify Wallpaper/Templates/`, and the preview and desktop reload every time you save.
 
 ```html
@@ -177,8 +176,8 @@ templates folder.
 
 ### Sharing templates
 
-A template travels as one `.swtemplate` file (the template folder, zipped). In **Customize**, select a template and
-click **Export “…”…** under the template list; send the file to anyone with Spotify Wallpaper, who double-clicks it
+A template travels as one `.swtemplate` file (the template folder, zipped). In the app's window, open a template's
+**⋯** menu and choose **Export “…”…**; send the file to anyone with Spotify Wallpaper, who double-clicks it
 (or uses **Import template…**) to install it. Built-in templates export too, so you can share a tuned copy.
 
 To install from the web, link to `spotify-wallpaper://install?url=<https address of a .swtemplate>`. The app

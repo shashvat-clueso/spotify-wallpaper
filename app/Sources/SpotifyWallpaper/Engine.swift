@@ -34,6 +34,7 @@ final class Engine {
     /// What each screen's live layer / still last got; a screen is redrawn only when its own key changes.
     private var liveKeys: [CGDirectDisplayID: String] = [:]
     private var stillKeys: [CGDirectDisplayID: String] = [:]
+    /// True while the real wallpaper's still is being drawn (ThumbnailService waits for it).
     private(set) var stillRendering = false
     private var generation = 0  // bumped when template code changes on disk
     private var liveEpoch = 0   // bumped on every settings change

@@ -2,6 +2,7 @@
   "name": "Typewriter",
   "description": "Each lyric types itself out in time with the song, with a blinking cursor.",
   "author": "Built-in",
+  "category": "print",
   "params": [
     { "key": "theme", "type": "select", "label": "Paper", "default": "dark", "options": [{ "value": "dark", "label": "Dark" }, { "value": "light", "label": "Light" }, { "value": "cover", "label": "Cover colors" }] },
     { "key": "font", "type": "font", "label": "Font", "default": "American Typewriter" },
