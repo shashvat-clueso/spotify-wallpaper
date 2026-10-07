@@ -33,7 +33,8 @@ final class Engine {
     private var renderers: [CGDirectDisplayID: ScreenRenderer] = [:]
     private var liveKey = ""
     private var stillKey = ""
-    private var stillRendering = false
+    /// True while the real wallpaper's still is being drawn (ThumbnailService waits for it).
+    private(set) var stillRendering = false
     private var generation = 0  // bumped when template code changes on disk
     private var liveEpoch = 0   // bumped on every settings change
     private var stillEpoch = 0  // bumped once settings stop changing

@@ -15,12 +15,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var store = TemplateStore(paths: paths)
     private lazy var engine = Engine(store: store, paths: paths)
     private var statusItem: NSStatusItem!
-    private var settings: SettingsWindowController?
+    private var home: HomeWindowController?
+    private lazy var thumbs = ThumbnailService(engine: engine, store: store, paths: paths)
     private var builder: BuilderWindowController?
     private var whatsNew: WhatsNewWindowController?
     private let updater = Updater()
     private lazy var history = HistoryStore(paths: paths)
-    private var historyWindow: HistoryWindowController?
     private lazy var shareCard = ShareCard(engine: engine, store: store)
     private let focusMonitor = FocusMonitor()
     private lazy var installer = TemplateInstaller(store: store, paths: paths)
@@ -46,9 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         statusItem.menu = menu
 
-        engine.onStateChange = { [weak self] in self?.settings?.pushState(); self?.builder?.pushState() }
-        engine.onClock = { [weak self] clock in self?.settings?.pushClock(clock); self?.builder?.pushClock(clock) }
-        engine.onTemplateFilesChanged = { [weak self] in self?.settings?.templateFilesChanged() }
+        engine.onStateChange = { [weak self] in self?.home?.pushState(); self?.builder?.pushState() }
+        engine.onClock = { [weak self] clock in self?.home?.pushClock(clock); self?.builder?.pushClock(clock) }
+        engine.onTemplateFilesChanged = { [weak self] in self?.thumbs.invalidateAll(); self?.home?.templateFilesChanged() }
         setUpAppFeatures()
         engine.start()
         updater.start()
@@ -56,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if WhatsNewWindowController.shouldShowAfterUpdate() { openWhatsNew() }
         if !UserDefaults.standard.bool(forKey: "launchedBefore") {
             UserDefaults.standard.set(true, forKey: "launchedBefore")
-            openSettings()
+            openHome()
         }
         let queued = pendingOpen ?? []
         pendingOpen = nil
@@ -71,14 +71,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.history.record(jpeg, track: track, templateID: templateID,
                                 colors: self.engine.statePayload(for: nil)["colors"] as? [String: Any] ?? [:])
         }
-        history.onChange = { [weak self] in self?.historyWindow?.historyChanged() }
+        history.onChange = { [weak self] in self?.home?.historyChanged() }
         focusMonitor.onChange = { [weak self] _ in self?.updateFocus() }
         if hideLyricsWhileSharing { focusMonitor.start() }
         installer.onInstalled = { [weak self] id in
             guard let self else { return }
-            self.openSettings()
-            self.settings?.sendInit(select: id)
+            self.openHome()
+            self.home?.showTemplate(id)
         }
+        // Home: thumbnails for every template, and refresh when a screen's template changes from anywhere
+        let thumbs = self.thumbs
+        engine.schemeHandler.thumbnail = { id in await thumbs.image(for: id) }
+        let previousActiveChanged = store.onActiveChanged
+        store.onActiveChanged = { [weak self] in previousActiveChanged?(); self?.home?.activeChanged() }
         HotKeys.shared.register(kVK_ANSI_L) { [weak self] in self?.shareCard.share() }
         HotKeys.shared.register(kVK_ANSI_F) { [weak self] in self?.toggleFocusMode() }
     }
@@ -123,8 +128,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openHistory() {
-        if historyWindow == nil { historyWindow = HistoryWindowController(engine: engine, history: history, store: store) }
-        historyWindow?.show()
+        openHome()
+        home?.show(tab: "history")
     }
 
     @objc private func toggleHistory() { history.enabled.toggle() }
@@ -191,9 +196,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // Re-opening the app from Finder/Spotlight while it's running opens the Customize window.
+    // Re-opening the app from Finder/Spotlight/the Dock while it's running opens Home.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        openSettings()
+        openHome()
         return false
     }
 
@@ -206,18 +211,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(playing)
         menu.addItem(.separator())
 
-        let templates = NSMenuItem(title: "Template", action: nil, keyEquivalent: "")
-        let sub = NSMenu()
-        for t in store.templates {
-            let item = NSMenuItem(title: t.name, action: #selector(pickTemplate(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = t.id
-            item.state = t.id == store.activeID ? .on : .off
-            sub.addItem(item)
-        }
-        templates.submenu = sub
-        menu.addItem(templates)
-        add(menu, "Customize…", #selector(openSettings), ",")
+        add(menu, "Open Spotify Wallpaper…", #selector(openHome), "o")
         add(menu, "Template Builder…", #selector(newBuilderTemplate), "")
         add(menu, "History Wall…", #selector(openHistory), "")
         menu.addItem(lyricsMenu())
@@ -267,13 +261,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return item
     }
 
-    @objc private func pickTemplate(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String else { return }
-        store.activeID = id
-        engine.invalidate()
-        settings?.sendInit()
-    }
-
     @objc private func openWhatsNew() {
         if whatsNew == nil { whatsNew = WhatsNewWindowController(engine: engine) }
         whatsNew?.show()
@@ -288,55 +275,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func pickRefreshRate(_ sender: NSMenuItem) { engine.refreshRate = sender.tag }
 
+    /// Quick timing nudges; the source picker and the rest live in Home's Lyrics tab.
     private func lyricsMenu() -> NSMenuItem {
         let item = NSMenuItem(title: "Lyrics", action: nil, keyEquivalent: "")
         let sub = NSMenu()
-        let sources = engine.lyricsSources
+        let hasLyrics = !engine.lyricsSources.isEmpty
         let info = NSMenuItem(title: engine.track == nil ? "Nothing playing"
                                 : engine.lyricsSourceText.isEmpty ? "No lyrics found" : "From \(engine.lyricsSourceText)",
                               action: nil, keyEquivalent: "")
         info.isEnabled = false
         sub.addItem(info)
         sub.addItem(.separator())
-
-        let synced = sources.filter(\.synced).count
-        var choices = [("Combined", synced > 1 ? "Combined timing (\(synced) sources)" : "Best available")]
-        choices += sources.map { ($0.name, $0.synced ? $0.name : "\($0.name) (unsynced)") }
-        for (value, title) in choices {
-            let c = NSMenuItem(title: title, action: #selector(pickLyricsSource(_:)), keyEquivalent: "")
-            c.target = self
-            c.representedObject = value
-            c.state = engine.lyricsChoice == value ? .on : .off
-            c.isEnabled = !sources.isEmpty
-            sub.addItem(c)
-        }
-        sub.addItem(.separator())
-
-        let offset = engine.lyricsOffset
-        for (title, delta) in [("Show Lines Earlier (−0.25 s)", -0.25), ("Show Lines Later (+0.25 s)", 0.25)] {
+        for (title, delta) in [("Show Lines Earlier (−0.5 s)", -0.5), ("Show Lines Later (+0.5 s)", 0.5)] {
             let n = NSMenuItem(title: title, action: #selector(nudgeLyrics(_:)), keyEquivalent: "")
             n.target = self
             n.representedObject = delta
-            n.isEnabled = !sources.isEmpty
+            n.isEnabled = hasLyrics
             sub.addItem(n)
         }
+        let offset = engine.lyricsOffset
         let reset = NSMenuItem(title: offset == 0 ? "Timing: as published" : String(format: "Reset Timing (now %+.2f s)", offset),
                                action: offset == 0 ? nil : #selector(resetLyricsTiming), keyEquivalent: "")
         reset.target = self
         reset.isEnabled = offset != 0
         sub.addItem(reset)
         sub.addItem(.separator())
-        let refetch = NSMenuItem(title: "Search Again", action: #selector(refetchLyrics), keyEquivalent: "")
-        refetch.target = self
-        refetch.isEnabled = engine.track != nil
-        sub.addItem(refetch)
-
+        let more = NSMenuItem(title: "Source & Timing…", action: #selector(openLyricsTab), keyEquivalent: "")
+        more.target = self
+        sub.addItem(more)
         item.submenu = sub
         return item
     }
 
-    @objc private func pickLyricsSource(_ sender: NSMenuItem) {
-        if let v = sender.representedObject as? String { engine.lyricsChoice = v }
+    @objc private func openLyricsTab() {
+        openHome()
+        home?.show(tab: "lyrics")
     }
 
     @objc private func nudgeLyrics(_ sender: NSMenuItem) {
@@ -345,15 +318,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func resetLyricsTiming() { engine.lyricsOffset = 0 }
 
-    @objc private func refetchLyrics() { engine.refetchLyrics() }
-
-    @objc private func openSettings() {
-        if settings == nil {
-            settings = SettingsWindowController(engine: engine, store: store, paths: paths)
-            settings?.onOpenBuilder = { [weak self] id in self?.openBuilder(id) }
-            settings?.installer = installer
+    /// Home: the app's main window (it replaced Customize).
+    @objc private func openHome() {
+        if home == nil {
+            home = HomeWindowController(engine: engine, store: store, paths: paths, thumbs: thumbs, history: history)
+            home?.onOpenBuilder = { [weak self] id in self?.openBuilder(id) }
+            home?.onShareCard = { [weak self] in self?.shareCard.share() }
+            home?.installer = installer
         }
-        settings?.show()
+        home?.show()
     }
 
     @objc private func newBuilderTemplate() { openBuilder(nil) }
@@ -366,7 +339,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         builder?.close()
         builder = BuilderWindowController(engine: engine, store: store, templateID: id)
-        builder?.onSaved = { [weak self] in self?.settings?.sendInit() }
+        builder?.onSaved = { [weak self] in self?.home?.sendInit() }
         builder?.show()
     }
 

@@ -2,6 +2,7 @@
   "name": "Vinyl",
   "description": "A record spinning while the song plays, the cover as its label, with lyrics beside it.",
   "author": "Built-in",
+  "category": "objects",
   "params": [
     { "key": "rpm", "type": "select", "label": "Speed", "default": "33", "options": [{ "value": "33", "label": "33⅓ rpm" }, { "value": "45", "label": "45 rpm" }, { "value": "12", "label": "Slow" }] },
     { "key": "tonearm", "type": "bool", "label": "Tone arm", "default": true },

@@ -5,7 +5,7 @@ private extension WKWebView {
     func takePrivateSnapshot() async throws -> NSImage { try await takeSnapshot(configuration: nil) }
 }
 
-/// Developer tool: `SpotifyWallpaper --screenshots <dir>` renders every template, plus the Customize window,
+/// Developer tool: `SpotifyWallpaper --screenshots <dir>` renders every template, plus Home,
 /// with the bundled sample song and quits. Used for the README.
 @MainActor
 enum Screenshots {
@@ -29,13 +29,15 @@ enum Screenshots {
         }
         renderer.close()
 
-        let settings = SettingsWindowController(engine: engine, store: store, paths: paths)
-        settings.show()
-        try? await Task.sleep(for: .seconds(4))
-        if let image = await settings.snapshot(), let jpeg = jpegData(image, quality: 0.86) {
-            try? jpeg.write(to: dir.appendingPathComponent("customize.jpg"))
+        let thumbs = ThumbnailService(engine: engine, store: store, paths: paths)
+        engine.schemeHandler.thumbnail = { id in await thumbs.image(for: id) }
+        let home = HomeWindowController(engine: engine, store: store, paths: paths, thumbs: thumbs, history: HistoryStore(paths: paths))
+        home.show()
+        try? await Task.sleep(for: .seconds(8))  // thumbnails draw two at a time
+        if let image = await home.snapshot(), let jpeg = jpegData(image, quality: 0.86) {
+            try? jpeg.write(to: dir.appendingPathComponent("home.jpg"))
         }
-        settings.close()
+        home.close()
 
         let news = WhatsNewWindowController(engine: engine)
         news.show()

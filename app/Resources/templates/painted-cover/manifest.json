@@ -2,6 +2,7 @@
   "name": "Painted Cover",
   "description": "The cover itself, repainted as a coarse painting in knife slabs, curved sweeps, dry brush and impasto, beside the song in Helvetica. Detail grows as the song plays, and a new cover is painted over the last one.",
   "author": "Built-in",
+  "category": "painting",
   "params": [
     {
       "key": "side",

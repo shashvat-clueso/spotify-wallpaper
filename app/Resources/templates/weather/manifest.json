@@ -2,6 +2,7 @@
   "name": "Weather & Time",
   "description": "A sky that follows your day and your weather: warm at dusk, blue at night, rain running down the glass the song sits behind.",
   "author": "Built-in",
+  "category": "calm",
   "params": [
     { "key": "weather", "type": "select", "label": "Weather", "default": "auto",
       "options": [{ "value": "auto", "label": "Where you are" }, { "value": "clear", "label": "Clear" }, { "value": "clouds", "label": "Cloudy" },

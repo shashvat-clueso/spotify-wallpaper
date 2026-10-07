@@ -2,6 +2,7 @@
   "name": "Minimal",
   "description": "Small centered type on a grainy gradient from the cover, with a waveform. Lots of breathing room.",
   "author": "Built-in",
+  "category": "calm",
   "params": [
     {
       "key": "glow",

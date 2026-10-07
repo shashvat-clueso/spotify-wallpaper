@@ -2,6 +2,7 @@
   "name": "Lock Screen",
   "description": "A big live clock and date, the current lyric, and a now-playing pill.",
   "author": "Built-in",
+  "category": "calm",
   "params": [
     { "key": "clock", "type": "select", "label": "Clock", "default": "12", "options": [{ "value": "12", "label": "12-hour" }, { "value": "24", "label": "24-hour" }] },
     { "key": "clockFont", "type": "font", "label": "Clock font", "default": "SF Pro Variable" },

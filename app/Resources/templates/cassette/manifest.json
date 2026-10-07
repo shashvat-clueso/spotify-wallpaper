@@ -2,6 +2,7 @@
   "name": "Cassette",
   "description": "A mixtape: the cover on its case insert, the title and the current lyric handwritten on the label, and reels that wind through the song.",
   "author": "Built-in",
+  "category": "objects",
   "params": [
     { "key": "background", "type": "color", "label": "Background", "default": "auto:deep" },
     { "key": "shell", "type": "color", "label": "Shell", "default": "auto:dark" },

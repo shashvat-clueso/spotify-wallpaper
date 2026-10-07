@@ -2,6 +2,7 @@
   "name": "Glow",
   "description": "Full-screen lyrics on a soft color gradient made from the cover, Apple Music style.",
   "author": "Built-in",
+  "category": "lyrics",
   "params": [
     {
       "key": "font",

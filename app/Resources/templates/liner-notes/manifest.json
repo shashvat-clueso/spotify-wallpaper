@@ -2,6 +2,7 @@
   "name": "Liner Notes",
   "description": "The CD booklet, open: the cover printed on one page and the whole song typeset on the other, the sung line marked like you'd mark it in pencil.",
   "author": "Built-in",
+  "category": "print",
   "params": [
     { "key": "paper", "type": "color", "label": "Paper", "default": "auto:paper" },
     { "key": "ink", "type": "color", "label": "Ink", "default": "#221F1B" },
