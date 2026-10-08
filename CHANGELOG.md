@@ -52,6 +52,9 @@ All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](
   Bradley Hand, Noteworthy and Chalkboard SE. See TEMPLATE_GUIDE.
 
 ### Changed
+- Windows no longer go blank: if macOS ends a web page's process (memory pressure, a crash), Home, the Builder, What's
+  New, the Quick Switcher and the live wallpaper reload themselves. The off-screen renderers for the wallpaper still no
+  longer pile up after display changes (one user had 85 screen-sized pages after a day).
 - Dry brush in Painted Cover is a real dry drag now: dozens of fine bristles that skip and run out unevenly, instead of
   blocky faceted strokes, and the cover underneath is a soft wash instead of a grid of squares that showed between the
   bristles.

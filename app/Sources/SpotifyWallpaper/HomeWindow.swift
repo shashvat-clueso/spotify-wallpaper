@@ -24,6 +24,7 @@ final class HomeWindowController: NSWindowController, WKScriptMessageHandler, NS
     private var pendingNavigation: [String: Any] = [:]
     private var thumbsDebounce: Task<Void, Never>?
     private var lastVisible: Bool?
+    private var recovery: ReloadOnCrash?
 
     var onOpenBuilder: ((String?) -> Void)?
     var onShareCard: (() -> Void)?
@@ -70,6 +71,9 @@ final class HomeWindowController: NSWindowController, WKScriptMessageHandler, NS
 
         historyBridge.send = { [weak self] msg in self?.send(["type": "history", "msg": msg]) }
         historyBridge.window = { [weak self] in self?.window }
+        // the page says "ready" again after a reload, which resends everything
+        recovery = ReloadOnCrash(webView)
+        recovery?.onReload = { [weak self] in self?.ready = false; self?.lastVisible = nil }
         webView.load(URLRequest(url: URL(string: "sw://app/ui/home.html")!))
     }
 
