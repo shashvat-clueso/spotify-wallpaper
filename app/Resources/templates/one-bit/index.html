@@ -1,0 +1,381 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  /* A 1-bit Mac screen blown up to wallpaper size: one "pixel" is --px CSS pixels, and everything (the dithered cover,
+     the window's 1-pixel rules, its striped title bar, the checker progress bar) is drawn on that grid, in two inks. */
+  :root { --ink: #1B1A26; --paper: #EFE9DC; --px: 3px; --face: Geneva, "Helvetica Neue", sans-serif; --chrome: Silom, Geneva, sans-serif; }
+  html.font-monaco { --face: Monaco, ui-monospace, monospace; }
+  html.font-newyork { --face: ui-serif, "New York", Georgia, serif; }
+  body { background: var(--paper); color: var(--ink); }
+  #pic { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; }
+
+  .win { position: absolute; background: var(--paper); border: var(--px) solid var(--ink);
+    box-shadow: calc(var(--px) * 3) calc(var(--px) * 3) 0 var(--ink); font-family: var(--face); }
+  /* the title bar: six rules with a gap above and below, the title on a paper patch, a close box and a zoom box */
+  .tb { position: relative; height: calc(var(--px) * 15); border-bottom: var(--px) solid var(--ink); display: flex; align-items: center; justify-content: center;
+    background: repeating-linear-gradient(var(--ink) 0 var(--px), transparent var(--px) calc(var(--px) * 2))
+      var(--px) calc(var(--px) * 3) / calc(100% - var(--px) * 2) calc(var(--px) * 11) no-repeat; }
+  .tb .tt { background: var(--paper); padding: 0 calc(var(--px) * 4); max-width: calc(100% - var(--px) * 44);
+    font: calc(var(--px) * 9) / calc(var(--px) * 15) var(--chrome); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.01em; }
+  .tb i { position: absolute; top: calc(var(--px) * 3); width: calc(var(--px) * 9); height: calc(var(--px) * 9); background: var(--paper);
+    border: var(--px) solid var(--ink); box-sizing: border-box; box-shadow: 0 0 0 var(--px) var(--paper); }
+  .tb .close { left: calc(var(--px) * 8); }
+  .tb .zoom { right: calc(var(--px) * 8); }
+  .tb .zoom::after { content: ""; position: absolute; left: 0; top: 0; width: calc(var(--px) * 4); height: calc(var(--px) * 4); border: solid var(--ink);
+    border-width: 0 var(--px) var(--px) 0; }
+
+  .body { padding: calc(var(--px) * 10) calc(var(--px) * 13) calc(var(--px) * 11); }
+  .kick { font: calc(var(--px) * 7) / 1 var(--chrome); letter-spacing: 0.04em; margin-bottom: calc(var(--px) * 6); display: flex; justify-content: space-between; }
+  .kick span:last-child { opacity: 1; }
+  .lyr { height: var(--lyrH, 30vmin); display: flex; align-items: flex-start; }
+  .lyr #line { width: 100%; line-height: 1.18; font-family: var(--face); letter-spacing: -0.005em; }
+  html.font-geneva .lyr #line { font-weight: 700; }
+  .lyr #line .by { display: block; font-weight: 400; font-size: 0.62em; line-height: 1.3; margin-top: 0.25em; }
+  /* the next line in 50% grey: the classic checkerboard, clipped to the letters */
+  .nx { margin-top: calc(var(--px) * 5); min-height: 1.2em; font: 700 var(--nxSize, 2.4vmin) / 1.2 var(--face); color: transparent;
+    background: repeating-conic-gradient(var(--ink) 0 25%, transparent 0 50%) 0 0 / calc(var(--px) * 2) calc(var(--px) * 2);
+    -webkit-background-clip: text; background-clip: text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  html:not(.param-nextLine) .nx { visibility: hidden; }
+
+  .bar { position: relative; height: calc(var(--px) * 8); margin-top: calc(var(--px) * 9); border: var(--px) solid var(--ink); overflow: hidden;
+    background: repeating-conic-gradient(var(--ink) 0 25%, var(--paper) 0 50%) 0 0 / calc(var(--px) * 2) calc(var(--px) * 2); }
+  .bar .rest { position: absolute; top: 0; bottom: 0; left: 0; width: 100%; background: var(--paper); border-left: var(--px) solid var(--ink);
+    transform: translateX(var(--rest, 30%)); }
+  .sub { display: flex; justify-content: space-between; gap: calc(var(--px) * 8); margin-top: calc(var(--px) * 6);
+    font: calc(var(--px) * 7.5) / 1.2 var(--face); }
+  .sub span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .sub span:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  /* the size box in the bottom-right corner */
+  .grow { position: absolute; right: 0; bottom: 0; width: calc(var(--px) * 13); height: calc(var(--px) * 13); }
+  .grow::before, .grow::after { content: ""; position: absolute; border: var(--px) solid var(--ink); background: var(--paper); }
+  .grow::before { right: calc(var(--px) * 2); bottom: calc(var(--px) * 2); width: calc(var(--px) * 7); height: calc(var(--px) * 7); }
+  .grow::after { right: calc(var(--px) * 5); bottom: calc(var(--px) * 5); width: calc(var(--px) * 4); height: calc(var(--px) * 4); }
+
+</style>
+</head>
+<body>
+  <canvas id="pic"></canvas>
+  <div class="win" id="win">
+    <div class="tb"><i class="close"></i><span class="tt" id="tt"></span><i class="zoom"></i></div>
+    <div class="body">
+      <div class="kick"><span id="kick"></span><span id="count"></span></div>
+      <div class="lyr" id="lyr"><div id="line"></div></div>
+      <div class="nx" id="next"></div>
+      <div class="bar"><div class="rest" id="rest"></div></div>
+      <div class="sub"><span id="who"></span><span data-template="{{track.elapsed}} / {{track.length}}"></span></div>
+    </div>
+    <i class="grow"></i>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const root = document.documentElement;
+    const lumOf = (c) => (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
+    const hex = (h) => { h = String(h || "#000").replace("#", ""); if (h.length === 3) h = h.replace(/./g, "$&$&"); const n = parseInt(h, 16) || 0; return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+    // how dark a colour reads in one ink: its luminance, minus a little for colourfulness, so pastel shapes on a pale
+    // ground (same brightness, different hue) still separate
+    const tone = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b - 0.3 * (Math.max(r, g, b) - Math.min(r, g, b));
+    const css = (c) => `rgb(${c.map((v) => Math.round(v)).join(",")})`;
+
+    // ---------- the cover: loaded once per cover, with its two inks and its tonal range ----------
+    let cover = null, coverKey = null, loading = null;
+    function loadCover(ctx) {
+      const key = ctx.track.coverKey || ctx.track.cover;
+      if (key === coverKey && (cover || loading)) return loading || Promise.resolve(cover);
+      coverKey = key; cover = null;
+      const img = new Image();
+      img.src = ctx.track.cover;
+      loading = img.decode().then(() => {
+        const N = 64, c = document.createElement("canvas");
+        c.width = c.height = N;
+        const g = c.getContext("2d", { willReadFrequently: true });
+        const s = Math.min(img.naturalWidth, img.naturalHeight);
+        g.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, N, N);
+        const d = g.getImageData(0, 0, N, N).data, px = [];
+        for (let i = 0; i < d.length; i += 4) px.push([d[i], d[i + 1], d[i + 2], lumOf([d[i], d[i + 1], d[i + 2]])]);
+        const tones = px.map((p) => tone(p[0], p[1], p[2])).sort((a, b) => a - b);
+        px.sort((a, b) => a[3] - b[3]);
+        const avg = (arr) => [0, 1, 2].map((k) => arr.reduce((s, p) => s + p[k], 0) / arr.length);
+        const n = Math.max(4, Math.floor(px.length * 0.05));
+        let dark = avg(px.slice(0, n)), light = avg(px.slice(-n));
+        // the inks have to read as ink and paper, so push them apart until they do
+        for (let k = 0; k < 40 && lumOf(dark) > 0.16; k++) dark = dark.map((v) => v * 0.88);
+        for (let k = 0; k < 40 && lumOf(light) < 0.86; k++) light = light.map((v) => v + (255 - v) * 0.14);
+        let lo = tones[Math.floor(tones.length * 0.02)], hi = tones[Math.floor(tones.length * 0.985)];
+        // stretch the tones, but not all the way: a pale cover stays mostly paper, a dark one mostly ink
+        const mean = tones.reduce((s, v) => s + v, 0) / tones.length / 255, want = 110;
+        if (hi - lo < want) { const add = want - (hi - lo); lo -= add * mean; hi += add * (1 - mean); }
+        cover = { img, dark, light, lo, hi };
+        loading = null;
+        return cover;
+      }).catch(() => { loading = null; coverKey = null; return null; });
+      return loading;
+    }
+
+    function inks(ctx) {
+      const m = ctx.params.inks;
+      if (m === "classic") return [[17, 17, 17], [255, 255, 255]];
+      if (m === "custom") return [hex(ctx.params.ink), hex(ctx.params.paper)];
+      return cover ? [cover.dark, cover.light] : [[27, 26, 38], [239, 233, 220]];
+    }
+
+    // ---------- geometry ----------
+    function geometry(ctx) {
+      const W = innerWidth, H = innerHeight, vmin = Math.min(W, H), portrait = W / H < 1;
+      const px = Math.max(1, Math.round(((+ctx.params.pixel || 3) * vmin) / 900));
+      const dW = Math.ceil(W / px), dH = Math.ceil(H / px);
+      let S, x, y, fade;
+      if (portrait) { S = W; x = 0; y = 0; fade = "bottom"; }
+      else { S = Math.min(H, W * 0.66); x = W - S; y = (H - S) / 2; fade = "left"; }
+      return { W, H, vmin, portrait, px, dW, dH, S, x, y, fade };
+    }
+
+    // ---------- dithering ----------
+    let base = null, baseKey = null, shown = null, wipe = null;
+    // The scene in grey: paper everywhere, the cover in its square, dissolving into the paper on its inner edge.
+    function prepare(g) {
+      const c = document.createElement("canvas");
+      c.width = g.dW; c.height = g.dH;
+      const x = c.getContext("2d", { willReadFrequently: true });
+      x.fillStyle = "#fff"; x.fillRect(0, 0, g.dW, g.dH);
+      const k = 1 / g.px, img = cover.img, s = Math.min(img.naturalWidth, img.naturalHeight);
+      x.imageSmoothingQuality = "high";
+      x.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, g.x * k, g.y * k, g.S * k, g.S * k);
+      const grad = g.fade === "left" ? x.createLinearGradient(g.x * k, 0, (g.x + g.S * 0.36) * k, 0) : x.createLinearGradient(0, (g.y + g.S) * k, 0, (g.y + g.S * 0.62) * k);
+      grad.addColorStop(0, "rgba(255,255,255,1)");
+      grad.addColorStop(0.35, "rgba(255,255,255,0.72)");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+      x.fillStyle = grad;
+      x.fillRect(0, 0, g.dW, g.dH);
+      const d = x.getImageData(0, 0, g.dW, g.dH).data, out = new Float32Array(g.dW * g.dH);
+      const lo = cover.lo, span = cover.hi - cover.lo;
+      for (let i = 0, j = 0; j < out.length; i += 4, j++) {
+        const L = tone(d[i], d[i + 1], d[i + 2]);
+        // levels, then a slight lift: Atkinson drops a quarter of the error, so shadows go black early
+        const v = Math.min(1, Math.max(0, (L - lo) / span));
+        out[j] = Math.pow(v, 0.85) * 255;
+      }
+      return out;
+    }
+
+    // Atkinson error diffusion. `seed` shakes the threshold a little and flips the scan direction, so each pass of the
+    // same picture lands its dots slightly differently: a redraw, not a repeat.
+    function dither(src, w, h, seed) {
+      const e = Float32Array.from(src), bits = new Uint8Array(w * h);
+      let s = (seed * 2654435761) >>> 0 || 1;
+      const rnd = () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
+      const amp = seed ? 22 : 0, flip = seed % 2 === 1;
+      for (let y = 0; y < h; y++) {
+        const rev = flip && y % 2 === 1, dir = rev ? -1 : 1;
+        for (let n = 0; n < w; n++) {
+          const x = rev ? w - 1 - n : n, i = y * w + x, old = e[i];
+          const t = 128 + (amp ? (rnd() - 0.5) * amp : 0);
+          const nv = old < t ? 0 : 255, err = (old - nv) / 8;
+          bits[i] = nv ? 0 : 1;
+          if (!err) continue;
+          const x1 = x + dir, x2 = x + 2 * dir;
+          if (x1 >= 0 && x1 < w) e[i + dir] += err;
+          if (x2 >= 0 && x2 < w) e[i + 2 * dir] += err;
+          if (y + 1 < h) {
+            const r = i + w;
+            if (x - dir >= 0 && x - dir < w) e[r - dir] += err;
+            e[r] += err;
+            if (x1 >= 0 && x1 < w) e[r + dir] += err;
+            if (y + 2 < h) e[r + w] += err;
+          }
+        }
+      }
+      return bits;
+    }
+
+    function toImage(bits, w, h, ink, paper) {
+      const im = new ImageData(w, h), d = im.data;
+      for (let i = 0, o = 0; i < bits.length; i++, o += 4) {
+        const c = bits[i] ? ink : paper;
+        d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255;
+      }
+      return im;
+    }
+
+    const canvas = $("pic"), g2 = canvas.getContext("2d");
+    function sizeCanvas(g) {
+      if (canvas.width !== g.dW || canvas.height !== g.dH) { canvas.width = g.dW; canvas.height = g.dH; }
+      canvas.style.width = g.dW * g.px + "px";
+      canvas.style.height = g.dH * g.px + "px";
+    }
+
+    // Draw the picture for this moment. Live, a new line (or a new cover) redraws it top to bottom.
+    function paint(ctx, animate) {
+      if (!cover) return;
+      const g = geometry(ctx);
+      const [ink, paper] = inks(ctx);
+      const key = [coverKey, g.W, g.H, g.px].join("|");
+      if (baseKey !== key) { base = prepare(g); baseKey = key; }
+      const seed = Math.max(0, ctx.lyrics.index + 1);
+      const im = toImage(dither(base, g.dW, g.dH, seed), g.dW, g.dH, ink, paper);
+      const fresh = shown === null || canvas.width !== g.dW || canvas.height !== g.dH;
+      const sameInks = shown === ink + "|" + paper;
+      sizeCanvas(g);
+      shown = ink + "|" + paper;
+      stopWipe();
+      if (!animate || fresh || !Wallpaper.live || Wallpaper.paused || ctx.params.wipe === false) { g2.putImageData(im, 0, 0); return; }
+      // a new cover with new inks repaints the paper beside it too
+      startWipe(im, ink, g, sameInks ? Math.max(0, Math.floor(g.x / g.px)) : 0);
+    }
+
+    // The redraw: rows of the new picture land a band at a time behind a one-pixel scan line, with a strip just
+    // ahead of it erased to paper, like an old screen repainting. Only the picture's columns are touched, ~16 times
+    // a second, and only rows that change, never the whole canvas.
+    function startWipe(im, ink, g, x0) {
+      const t0 = performance.now(), dur = 1600, H = g.dH, w = im.width - x0;
+      const band = Math.max(3, Math.round(H * 0.035));
+      const paperCss = getComputedStyle(root).getPropertyValue("--paper");
+      const me = (wipe = { im, row: 0, raf: 0, H, ink });
+      const step = (now) => {
+        if (wipe !== me) return;
+        const t = Math.min(1, (now - t0) / dur), to = Math.min(H, Math.round(t * H));
+        if (to > wipe.row) {
+          g2.putImageData(im, 0, 0, x0, wipe.row, w, to - wipe.row);
+          wipe.row = to;
+          if (to < H) {
+            g2.fillStyle = paperCss; g2.fillRect(x0, to + 1, w, Math.min(band, H - to - 1));
+            g2.fillStyle = css(ink); g2.fillRect(x0, to, w, 1);
+          }
+        }
+        if (t < 1) wipe.raf = setTimeout(() => requestAnimationFrame(step), 60);
+        else wipe = null;
+      };
+      requestAnimationFrame(step);
+    }
+    function stopWipe() {
+      if (!wipe) return;
+      clearTimeout(wipe.raf);
+      g2.putImageData(wipe.im, 0, 0);
+      wipe = null;
+    }
+
+    // ---------- the window ----------
+    function placeWindow(ctx, g) {
+      const win = $("win"), px = g.px;
+      root.style.setProperty("--px", px + "px");
+      let w, left;
+      if (g.portrait) { w = Math.min(g.W - g.vmin * 0.12, g.vmin * 0.94); left = (g.W - w) / 2; }
+      else {
+        w = Math.min(g.W * 0.47, g.vmin * 0.9);
+        const free = g.W - g.S;  // the paper beside the cover
+        left = Math.max(g.vmin * 0.07, free / 2 - w / 2 + Math.min(free, g.S) * 0.12);
+        left = Math.min(left, g.W - w - g.vmin * 0.07);
+      }
+      // snap to the pixel grid so the 1-pixel rules stay crisp
+      w = Math.round(w / px) * px; left = Math.round(left / px) * px;
+      win.style.width = w + "px";
+      win.style.left = left + "px";
+      const fs = Math.min(6.2, Math.max(3.6, (w / g.vmin) * 7.4)) * g.vmin / 100;
+      lyricMax = fs;
+      root.style.setProperty("--lyrH", Math.round(fs * 1.18 * 3) + "px");
+      root.style.setProperty("--nxSize", Math.max(13, fs * 0.5) + "px");
+    }
+    // The lyric gets the window's three-line box: as large as fits in three lines, or in four if that's larger.
+    let lyricMax = 40;
+    function fitLyric() {
+      const el = $("line"), box = 3 * 1.18 * lyricMax, LH = 1.18;
+      let best = Math.max(12, lyricMax * 0.3);
+      for (const lines of [3, 4]) {
+        let lo = Math.max(12, lyricMax * 0.3), hi = Math.min(lyricMax, box / (lines * LH)), ok = lo;
+        for (let n = 0; n < 12; n++) {
+          const mid = (lo + hi) / 2;
+          el.style.fontSize = mid + "px";
+          if (el.scrollHeight <= mid * LH * lines + 2 && el.scrollWidth <= el.clientWidth + 1) { ok = mid; lo = mid; } else hi = mid;
+        }
+        best = Math.max(best, ok);
+      }
+      el.style.fontSize = best + "px";
+    }
+    function placeWindowTop(g) {
+      const win = $("win"), px = g.px;
+      // vertically: centred beside the cover, or under it in portrait
+      const h = win.offsetHeight;
+      let top = g.portrait ? Math.max(g.S * 0.74, (g.H + g.S * 0.62) / 2 - h / 2) : (g.H - h) / 2 + g.vmin * 0.02;
+      top = Math.min(top, g.H - h - g.vmin * 0.06);
+      win.style.top = Math.round(top / px) * px + "px";
+    }
+
+    function setProgress(ctx) {
+      const bar = $("rest").parentElement, w = bar.clientWidth || 1, px = parseFloat(getComputedStyle(root).getPropertyValue("--px")) || 3;
+      const at = Math.round((ctx.track.progress * w) / px) * px;
+      const v = at + "px";
+      if (root.style.getPropertyValue("--rest") !== v) root.style.setProperty("--rest", v);
+    }
+
+    function texts(ctx) {
+      const L = ctx.lyrics, t = ctx.track, sung = L.lines.filter((l) => l.text.trim()).length;
+      let line, kick, count = "", next = "", tt = t.title;
+      const firstLine = (L.lines.find((l) => l.text.trim()) || {}).text || "";
+      if (ctx.focus) { line = t.title; kick = "Now Playing"; tt = t.album || t.artist; }
+      else if (!L.hasLyrics) { line = t.title; kick = "Now Playing"; tt = t.album || t.artist; }
+      else if (L.index < 0) { line = t.title; kick = "Coming Up"; next = firstLine; tt = t.album || t.artist; }
+      else if (L.isInstrumental) { line = "• • •"; kick = "Instrumental"; next = L.next.find((s) => s.trim()) || ""; }
+      else {
+        line = L.current; kick = "Lyrics";
+        let n = 0; for (let k = 0; k <= L.index; k++) if (L.lines[k].text.trim()) n++;
+        count = n + " of " + sung;
+        next = L.next.find((s) => s.trim()) || "";
+      }
+      if (ctx.focus) next = "";
+      // when the big text is the title, the artist sits under it
+      const by = line === t.title ? t.artist || "" : "";
+      return { line, by, kick, count, next, tt };
+    }
+
+    let lastLine = null;
+    Wallpaper.on("render", (ctx) => {
+      root.classList.remove("font-geneva", "font-monaco", "font-newyork");
+      root.classList.add("font-" + (ctx.params.font || "geneva"));
+      const tx = texts(ctx);
+      if ($("line").textContent !== tx.line + tx.by) {
+        $("line").textContent = tx.line;
+        if (tx.by) $("line").appendChild(Object.assign(document.createElement("span"), { className: "by", textContent: tx.by }));
+        lastLine = tx.line;
+      }
+      $("kick").textContent = tx.kick;
+      $("count").textContent = tx.count;
+      $("next").textContent = tx.next;
+      $("tt").textContent = tx.tt;
+      $("who").textContent = [ctx.track.artist, ctx.track.album].filter(Boolean).join(" — ");
+      placeWindow(ctx, geometry(ctx));
+      const [ink, paper] = inks(ctx);
+      root.style.setProperty("--ink", css(ink));
+      root.style.setProperty("--paper", css(paper));
+      if (ctx.track.cover) Wallpaper.hold(loadCover(ctx).then(() => {
+        const [i2, p2] = inks(ctx);
+        root.style.setProperty("--ink", css(i2));
+        root.style.setProperty("--paper", css(p2));
+      }));
+    });
+
+    let paintedFor = null;
+    Wallpaper.on("layout", (ctx) => {
+      const g = geometry(ctx);
+      fitLyric();
+      placeWindowTop(g);
+      setProgress(ctx);
+      if (!cover) return;
+      const [ink, paper] = inks(ctx);
+      const want = [coverKey, g.W, g.H, g.px, ink, paper, Math.max(0, ctx.lyrics.index + 1)].join("|");
+      if (paintedFor === want) return;
+      // a new line or a new cover redraws with the wipe; a resize or a settings change just repaints
+      const prev = paintedFor ? paintedFor.split("|") : null;
+      const animate = !!prev && (prev[0] !== String(coverKey) || prev[6] !== want.split("|")[6]) && prev[1] == g.W && prev[2] == g.H;
+      paintedFor = want;
+      paint(ctx, animate);
+    });
+    Wallpaper.on("tick", setProgress);
+    Wallpaper.on("pause", stopWipe);
+    addEventListener("resize", () => { paintedFor = null; Wallpaper.refresh(); });
+  </script>
+</body>
+</html>

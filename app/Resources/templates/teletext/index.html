@@ -1,0 +1,474 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  /* A teletext page. Everything sits on a character grid (--cw × --ch cells, 25 rows on a landscape screen, 40 on a
+     portrait one), drawn in the eight teletext colours. The page is built by script as absolutely placed rows; the
+     cover and the banner are mosaic graphics (2×3 blocks per cell) painted once into canvases. */
+  :root { --cw: 22px; --ch: 36px; --fs: 36px; --x0: 0px; }
+  body { background: #000; color: #fff; }
+  .page { position: absolute; top: 0; bottom: 0; left: var(--x0); width: calc(var(--cols, 64) * var(--cw)); }
+  .page, .page * { box-sizing: border-box; }
+  .row, .cell { position: absolute; height: var(--ch); white-space: pre; overflow: visible;
+    font: 700 var(--fs) / var(--ch) ui-monospace, "SF Mono", Menlo, Monaco, monospace; letter-spacing: 0; font-kerning: none;
+    font-variant-ligatures: none; text-rendering: optimizeSpeed; }
+  .bg { position: absolute; height: var(--ch); }
+  /* double height: the row's glyphs stretched over two rows, the way the SAA5050 did it */
+  .dh { display: inline-block; transform: scaleY(2); transform-origin: 0 0; }
+  canvas { position: absolute; image-rendering: pixelated; }
+  /* focus: the lyric area shows its own "concealed" page instead of hiding */
+  .sw-focus #lyrics { visibility: visible; opacity: 1; }
+
+  .bar { position: absolute; }
+  .bar .track, .bar .fill { position: absolute; top: calc(var(--ch) / 3); height: calc(var(--ch) / 3); left: 0; }
+  .bar .track { right: 0;
+    background: repeating-linear-gradient(90deg, #0000ff 0 calc(var(--cw) / 2 - var(--gap)), transparent 0 calc(var(--cw) / 2)); }
+  .bar .fill { background: repeating-linear-gradient(90deg, #ffff00 0 calc(var(--cw) / 2 - var(--gap)), transparent 0 calc(var(--cw) / 2)); }
+
+  /* a page arriving: rows of the lyric area land one after another, top to bottom */
+  .sw-live .ly { animation: ttx-row 1ms steps(1) both; animation-delay: calc(var(--n, 0) * 28ms); }
+  @keyframes ttx-row { from { visibility: hidden; } }
+
+  /* the CRT: scanlines, a little bloom on the text, darker corners. All static, painted once. */
+  .crt { position: absolute; inset: 0; pointer-events: none; display: none; }
+  .param-crt .crt { display: block; }
+  .crt .scan { position: absolute; inset: 0; opacity: 0.55;
+    background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.42) 0 1px, transparent 1px var(--sl, 3px)); }
+  .crt .vig { position: absolute; inset: 0;
+    background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 62%, rgba(0, 0, 0, 0.5) 100%); }
+  .param-crt .row, .param-crt .cell { text-shadow: 0 0 calc(var(--ch) * 0.28) var(--glow, transparent); }
+</style>
+</head>
+<body>
+  <div class="page" id="page">
+    <canvas id="mosaic"></canvas>
+    <canvas id="banner"></canvas>
+    <div id="rows"></div>
+    <div id="lyrics" data-lyrics></div>
+    <div class="bar" id="bar"><div class="track"></div><div class="fill" id="fill"></div></div>
+  </div>
+  <div class="crt"><div class="scan"></div><div class="vig"></div></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const css = document.documentElement.style;
+
+    // ---------- the eight colours ----------
+    const TT = [[0, 0, 0], [255, 0, 0], [0, 255, 0], [255, 255, 0], [0, 0, 255], [255, 0, 255], [0, 255, 255], [255, 255, 255]];
+    const HEX = ["#000000", "#ff0000", "#00ff00", "#ffff00", "#0000ff", "#ff00ff", "#00ffff", "#ffffff"];
+    const C = { black: 0, red: 1, green: 2, yellow: 3, blue: 4, magenta: 5, cyan: 6, white: 7 };
+    const GLOW = ["transparent", "rgba(255,40,40,.45)", "rgba(40,255,40,.4)", "rgba(255,255,60,.4)", "rgba(60,60,255,.5)", "rgba(255,60,255,.45)", "rgba(60,255,255,.4)", "rgba(255,255,255,.35)"];
+
+    // ---------- the grid ----------
+    const K = 0.62;  // cell width / height
+    let advance = 0.6;
+    function measureAdvance() {
+      const g = document.createElement("canvas").getContext("2d");
+      g.font = `700 100px ui-monospace, "SF Mono", Menlo, Monaco, monospace`;
+      advance = g.measureText("MMMMMMMMMM").width / 1000 || 0.6;
+    }
+    function grid() {
+      const W = innerWidth, H = innerHeight, portrait = H > W * 1.05;
+      const ch0 = Math.min(H / 25, W / (40 * K));
+      const R = Math.max(25, Math.floor(H / ch0)), ch = H / R, cw = ch * K;
+      const cols = Math.min(Math.floor(W / cw), 82);
+      return { W, H, R, ch, cw, cols, x0: Math.round((W - cols * cw) / 2), portrait };
+    }
+
+    // ---------- word wrap in cells ----------
+    let measurer = null;
+    function cellsOf(s) {
+      // most text is one cell per character; measure anything wider (CJK, emoji) against the font
+      if (/^[\x20-\x7e -ɏ‘-”…–—]*$/.test(s)) return s.length;
+      if (!measurer) measurer = document.createElement("canvas").getContext("2d");
+      measurer.font = `700 100px ui-monospace, "SF Mono", Menlo, Monaco, monospace`;
+      return Math.ceil(measurer.measureText(s).width / (advance * 100) - 0.05);
+    }
+    function wrap(text, width) {
+      const out = [];
+      let line = "";
+      for (const word of String(text).split(/\s+/).filter(Boolean)) {
+        let w = word;
+        while (cellsOf(w) > width) {  // a word longer than the line breaks anywhere
+          if (line) { out.push(line); line = ""; }
+          let k = width; while (k > 1 && cellsOf(w.slice(0, k)) > width) k--;
+          out.push(w.slice(0, k)); w = w.slice(k);
+        }
+        const next = line ? line + " " + w : w;
+        if (cellsOf(next) <= width) line = next; else { out.push(line); line = w; }
+      }
+      if (line) out.push(line);
+      return out.length ? out : [""];
+    }
+    const clip = (s, n) => (cellsOf(s) <= n ? s : (() => { let k = s.length; while (k > 0 && cellsOf(s.slice(0, k) + "…") > n) k--; return s.slice(0, k).trimEnd() + "…"; })());
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    // ---------- page building ----------
+    // A page is a list of rows and background blocks in cell coordinates; it becomes HTML in one go.
+    function textAt(r, c, s, col, o = {}) {
+      const cls = "row" + (o.ly ? " ly" : "") + (o.id ? "" : "");
+      const inner = o.dh ? `<span class="dh">${esc(s)}</span>` : esc(s);
+      return `<div class="${cls}"${o.id ? ` id="${o.id}"` : ""} style="top:calc(${r} * var(--ch));left:calc(${c} * var(--cw));color:${HEX[col]};--glow:${GLOW[col]}${o.ly ? `;--n:${o.n || 0}` : ""}${o.dh ? `;height:calc(2 * var(--ch))` : ""}">${inner}</div>`;
+    }
+    function blockAt(r, c, w, h, col) {
+      return `<div class="bg" style="top:calc(${r} * var(--ch));left:calc(${c} * var(--cw));width:calc(${w} * var(--cw));height:calc(${h} * var(--ch));background:${HEX[col]}"></div>`;
+    }
+
+    const BANDS = { blue: C.blue, red: C.red, magenta: C.magenta, green: C.green };
+    const pad2 = (n) => String(n).padStart(2, "0");
+    function clockText(ctx) {
+      const d = new Date(), h = d.getHours();
+      const hh = ctx.params.clock24 === false ? String(((h + 11) % 12) + 1) : pad2(h);
+      return hh + ":" + pad2(d.getMinutes()) + "/" + pad2(d.getSeconds());
+    }
+    function dateText() {
+      const d = new Date();
+      const day = d.toLocaleDateString("en-GB", { weekday: "short" }), mon = d.toLocaleDateString("en-GB", { month: "short" });
+      return `${day} ${pad2(d.getDate())} ${mon}`;
+    }
+
+    let L = null;  // the current layout (cells), shared by the drawing code
+    function layout(g, ctx) {
+      const { R, cols } = g;
+      const lay = { g };
+      if (!g.portrait) {
+        const mr = Math.min(18, R - 7), mc = Math.round((mr * g.ch) / g.cw);
+        lay.mosaic = { r: 5, c: cols - 1 - mc, rows: mr, cols: mc };
+        lay.text = { c0: 1, c1: lay.mosaic.c - 2 };  // exclusive end
+        lay.titleRow = 5;
+        lay.lyricEnd = 5 + mr - 2;     // rows < this are lyrics
+        lay.barRow = 5 + mr - 1;
+      } else {
+        const tc = cols - 2;
+        let mc = Math.min(tc - 2, Math.round(cols * 0.8)), mr = Math.round((mc * g.cw) / g.ch);
+        mr = Math.min(mr, Math.max(10, R - 24)); mc = Math.round((mr * g.ch) / g.cw);
+        lay.text = { c0: 1, c1: cols - 1 };
+        lay.titleRow = 5;
+        lay.mosaic = { r: 0, c: Math.round((cols - mc) / 2), rows: mr, cols: mc };  // row set once the title is known
+        lay.barRow = R - 3;
+        lay.lyricEnd = R - 4;
+      }
+      return lay;
+    }
+
+    function buildPage(ctx) {
+      const g = grid(), lay = layout(g, ctx), p = ctx.params, t = ctx.track, Ly = ctx.lyrics;
+      const { cols, R } = g, tw = lay.text.c1 - lay.text.c0;
+      let html = "";
+      const band = BANDS[p.band] ?? C.blue;
+
+      // row 0: the header
+      const pg = String(p.page || "888").replace(/\D/g, "").slice(0, 3) || "888";
+      html += textAt(0, 1, "P" + pg, C.white);
+      const svc = clip(String(p.service ?? "SPOTIFY").toUpperCase(), Math.max(4, cols - 32));
+      html += textAt(0, 7, svc, C.yellow);
+      html += textAt(0, 8 + cellsOf(svc), pg, C.white);
+      // the date goes when the row is too narrow for it (portrait)
+      const clk = clockText(ctx), room = cols - 1 - (9 + cellsOf(svc) + pg.length);
+      const right = room >= dateText().length + clk.length + 3 ? dateText() + " " : "";
+      html += `<div class="row" id="hdr" style="top:0;right:calc(1 * var(--cw));color:${HEX[C.white]};--glow:${GLOW[C.white]}">${esc(right)}<span id="clock" style="color:${HEX[C.yellow]};--glow:${GLOW[C.yellow]}">${esc(clockText(ctx))}</span></div>`;
+
+      // rows 1–3: the banner (mosaic letters, drawn into a canvas)
+      const word = p.banner === "none" ? "" : (p.banner === "music" || !t.genre ? "MUSIC" : t.genre).toUpperCase().replace(/[^A-Z0-9 \-&]/g, "");
+      lay.banner = word ? { r: 1, c: 0, rows: 3, cols, word: word.slice(0, Math.floor((cols - 2) / 4)).trim() } : null;
+      if (lay.banner) {
+        const sub = "Subtitles · page " + pg;
+        lay.banner.sub = cellsOf(sub) < cols - 4 - lay.banner.word.length * 4 ? sub : "";
+        if (lay.banner.sub) html += textAt(2, cols - 1 - cellsOf(sub), sub, C.white);
+      }
+
+      // the title, double height on a band
+      const title = (t.title || "").toUpperCase();
+      let tl = wrap(title, tw - 1);
+      if (tl.length > 2) tl = [tl[0], clip(tl.slice(1).join(" "), tw - 1)];
+      let r = lay.titleRow;
+      const bandEnd = g.portrait ? cols : lay.text.c1 + 1;
+      html += blockAt(r, 0, bandEnd, tl.length * 2, band);
+      tl.forEach((s, k) => { html += textAt(r + k * 2, lay.text.c0, s, band === C.magenta ? C.white : band === C.green ? C.black : C.yellow, { dh: true }); });
+      r += tl.length * 2;
+      // artist · album in cyan, and the line count like a rolling subpage
+      const sung = Ly.lines.filter((l) => l.text.trim());
+      const count = Ly.hasLyrics && !ctx.focus ? pad2(Ly.lines.slice(0, Ly.index + 1).filter((l) => l.text.trim()).length) + "/" + pad2(sung.length) : "";
+      const by = [t.artist, t.album].filter(Boolean).join(" · ").toUpperCase();
+      html += textAt(r, lay.text.c0, clip(by, tw - (count ? count.length + 2 : 0)), C.cyan);
+      if (count) html += textAt(r, lay.text.c1 - count.length, count, C.white);
+      r += 2;
+
+      if (g.portrait) {
+        lay.mosaic.r = r;
+        r += lay.mosaic.rows + 1;
+      }
+      lay.lyricTop = r;
+
+      // the progress row
+      const el = t.elapsed, len = t.length;
+      html += textAt(lay.barRow, lay.text.c0, el, C.white, { id: "elapsed" });
+      html += textAt(lay.barRow, lay.text.c1 - len.length, len, C.white);
+      lay.bar = { r: lay.barRow, c: lay.text.c0 + 6, w: tw - 6 - len.length - 1 };
+
+      // the last row: Fastext
+      const keys = [["Lyrics", C.red], ["Artist", C.green], ["Album", C.yellow], ["Index", C.cyan]];
+      const kw = cols / 4;
+      keys.forEach(([s, col], k) => {
+        const c0 = Math.round(k * kw), c1 = Math.round((k + 1) * kw);
+        html += blockAt(R - 1, c0, c1 - c0, 1, col);
+        html += `<div class="row" style="top:calc(${R - 1} * var(--ch));left:calc(${c0} * var(--cw));width:calc(${c1 - c0} * var(--cw));text-align:center;color:#000">${esc(s)}</div>`;
+      });
+
+      L = lay;
+      return html;
+    }
+
+    // ---------- the lyric area ----------
+    function buildLyrics(ctx) {
+      const lay = L, Ly = ctx.lyrics, t = ctx.track, p = ctx.params;
+      const top = lay.lyricTop, rows = lay.lyricEnd - top, c0 = lay.text.c0, tw = lay.text.c1 - c0;
+      if (rows < 2) return "";
+      let html = "", n = 0;
+      const put = (r, c, s, col, o = {}) => { html += textAt(r, c, s, col, { ly: true, n: n++, ...o }); };
+
+      if (ctx.focus || !Ly.hasLyrics) {
+        let r = top;
+        if (ctx.focus) { put(r, c0, "LYRICS CONCEALED", C.magenta); put(r + 1, c0, clip("Press REVEAL on your remote.", tw), C.white); }
+        else { put(r, c0, clip("No subtitles for this programme", tw), C.white); }
+        r += 3;
+        const rowsInfo = [["ALBUM", t.album], ["ARTIST", t.artist], ["GENRE", t.genre], ["LENGTH", t.length]].filter(([, v]) => v);
+        for (const [k, v] of rowsInfo) { if (r >= top + rows) break; put(r, c0, k, C.green); put(r, c0 + 8, clip(String(v), tw - 8), C.white); r++; }
+        return html;
+      }
+
+      const lines = Ly.lines, i = Ly.index, w = tw - 2;
+      const textOf = (k) => (k < 0 ? "" : (lines[k] && lines[k].text) || "").trim();
+      const entry = (k) => {
+        const cur = k === i, s = textOf(k);
+        const txt = s || (cur || k < 0 ? "♪ ♪ ♪" : "");
+        const dh = cur && p.doubleHeight !== false;
+        const wl = wrap(txt, w);
+        return { k, cur, dh, wl, h: wl.length * (dh ? 2 : 1) };
+      };
+      // current first, then the lines around it, by priority, while they fit (one blank row between lines)
+      const want = [i, i + 1, i - 1, i + 2, i + 3, i - 2, i + 4, i + 5, i + 6, i + 7];
+      const chosen = [];
+      let used = 0;
+      for (const k of want) {
+        if (k < -1 || k >= lines.length || (k === -1 && i !== -1)) continue;
+        if (k !== i && !textOf(k)) continue;  // skip empty gaps except the current one
+        let e = entry(k);
+        if (k === i && e.h > rows && e.dh) { e.dh = false; e.h = e.wl.length; }
+        const add = e.h + (chosen.length ? 1 : 0);
+        if (used + add > rows) { if (k === i) { e.wl = e.wl.slice(0, rows); e.h = e.wl.length * (e.dh ? 2 : 1); chosen.push(e); used = rows; } continue; }
+        chosen.push(e); used += add;
+      }
+      chosen.sort((a, b) => a.k - b.k);
+      let r = top;
+      for (const e of chosen) {
+        const col = e.cur ? C.yellow : e.k < i ? C.green : C.white;
+        if (e.cur) put(r, c0, "▶", C.magenta, e.dh ? { dh: true } : {});
+        e.wl.forEach((s, j) => put(r + j * (e.dh ? 2 : 1), c0 + 2, s, col, e.dh ? { dh: true } : {}));
+        r += e.h + 1;
+      }
+      return html;
+    }
+
+    // ---------- mosaic graphics ----------
+    // A 5×7 font for the banner, one bit per sixel.
+    const FONT = {
+      A: "01110100011000110001111111000110001", B: "11110100011000111110100011000111110", C: "01110100011000010000100001000101110",
+      D: "11100100101000110001100011001011100", E: "11111100001000011110100001000011111", F: "11111100001000011110100001000010000",
+      G: "01110100011000010111100011000101111", H: "10001100011000111111100011000110001", I: "01110001000010000100001000010001110",
+      J: "00111000100001000010000101001001100", K: "10001100101010011000101001001010001", L: "10000100001000010000100001000011111",
+      M: "10001110111010110101100011000110001", N: "10001100011100110101100111000110001", O: "01110100011000110001100011000101110",
+      P: "11110100011000111110100001000010000", Q: "01110100011000110001101011001001101", R: "11110100011000111110101001001010001",
+      S: "01111100001000001110000010000111110", T: "11111001000010000100001000010000100", U: "10001100011000110001100011000101110",
+      V: "10001100011000110001100010101000100", W: "10001100011000110101101011010101010", X: "10001100010101000100010101000110001",
+      Y: "10001100011000101010001000010000100", Z: "11111000010001000100010001000011111", "0": "01110100011001110101110011000101110",
+      "1": "00100011000010000100001000010001110", "2": "01110100010000100010001000100011111", "3": "11111000100010000010000011000101110",
+      "4": "00010001100101010010111110001000010", "5": "11111100001111000001000011000101110", "6": "00110010001000011110100011000101110",
+      "7": "11111000010001000100010000100001000", "8": "01110100011000101110100011000101110", "9": "01110100011000101111000010001001100",
+      "-": "00000000000000011111000000000000000", "&": "01100100101010001000101011001001101", " ": "00000000000000000000000000000000000",
+    };
+
+    // Sixel rectangles, snapped to device pixels so edges stay crisp at any scale.
+    function sixelCanvas(cv, box, g, sw, sh) {
+      const dpr = Math.max(1, devicePixelRatio || 1);
+      const x = box.c * g.cw, y = box.r * g.ch, w = box.cols * g.cw, h = box.rows * g.ch;
+      // snap the canvas itself to device pixels too
+      const X0 = Math.round((g.x0 + x) * dpr), Y0 = Math.round(y * dpr), X1 = Math.round((g.x0 + x + w) * dpr), Y1 = Math.round((y + h) * dpr);
+      cv.width = X1 - X0; cv.height = Y1 - Y0;
+      Object.assign(cv.style, { left: X0 / dpr - g.x0 + "px", top: Y0 / dpr + "px", width: (X1 - X0) / dpr + "px", height: (Y1 - Y0) / dpr + "px" });
+      const gx = (i) => Math.round(((i * w) / sw) * dpr), gy = (j) => Math.round(((j * h) / sh) * dpr);
+      return { g2: cv.getContext("2d"), gx, gy, sepX: Math.max(1, Math.round((w / sw) * dpr * 0.2)), sepY: Math.max(1, Math.round((h / sh) * dpr * 0.2)) };
+    }
+    function paintSixels(s, sw, sh, colorAt, separated) {
+      const { g2, gx, gy, sepX, sepY } = s;
+      g2.clearRect(0, 0, g2.canvas.width, g2.canvas.height);
+      for (let col = 1; col < 8; col++) {
+        g2.fillStyle = HEX[col];
+        g2.beginPath();
+        for (let j = 0; j < sh; j++) for (let i = 0; i < sw; i++) {
+          if (colorAt(i, j) !== col) continue;
+          const x = gx(i), y = gy(j), x2 = gx(i + 1), y2 = gy(j + 1);
+          // separated graphics: each block loses a strip on its left and bottom
+          if (separated) g2.rect(x + sepX, y, x2 - x - sepX, y2 - y - sepY); else g2.rect(x, y, x2 - x, y2 - y);
+        }
+        g2.fill();
+      }
+    }
+
+    function drawBanner(ctx) {
+      const cv = $("banner"), b = L.banner;
+      if (!b) { cv.style.display = "none"; return; }
+      cv.style.display = "";
+      const sw = b.cols * 2, sh = b.rows * 3, word = b.word;
+      const s = sixelCanvas(cv, b, L.g, sw, sh);
+      // letters in white on a red band, with a cyan rule along the band's foot
+      const bits = new Uint8Array(sw * sh).fill(C.red);
+      for (let i = 0; i < sw; i++) bits[(sh - 1) * sw + i] = C.black;
+      for (let i = 0; i < sw; i++) bits[(sh - 2) * sw + i] = i % 2 ? C.cyan : C.cyan;
+      let x = 2;
+      for (const ch of word) {
+        const f = FONT[ch] || FONT[" "];
+        // emboldened: every lit bit also lights the block to its right, so strokes are two blocks wide
+        for (let j = 0; j < 7; j++) for (let i = 0; i < 5; i++) if (f[j * 5 + i] === "1") for (const dx of [0, 1]) if (x + i + dx < sw) bits[j * sw + x + i + dx] = C.white;
+        x += 8;
+      }
+      paintSixels(s, sw, sh, (i, j) => bits[j * sw + i], ctx.params.separated === true);
+    }
+
+    // ---------- the cover as mosaic ----------
+    let cover = null, coverFor = null, mosaicKey = null, mosaicBits = null;
+
+    async function loadCover(url) {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      const N = 160, c = document.createElement("canvas");
+      c.width = c.height = N;
+      const g = c.getContext("2d", { willReadFrequently: true });
+      g.imageSmoothingQuality = "high";
+      const s = Math.min(img.naturalWidth, img.naturalHeight);
+      g.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, N, N);
+      return c;
+    }
+
+    // Each 2×3 cell may show one foreground and one background colour; pick the pair that fits its six blocks best,
+    // then diffuse the error onward so gradients still read.
+    function mosaicFrom(src, sw, sh) {
+      const c = document.createElement("canvas");
+      c.width = sw; c.height = sh;
+      const g = c.getContext("2d", { willReadFrequently: true });
+      g.imageSmoothingQuality = "high";
+      g.drawImage(src, 0, 0, sw, sh);
+      const d = g.getImageData(0, 0, sw, sh).data, n = sw * sh;
+      // levels on luminance, and a push toward saturation so the eight colours have something to grab
+      const lum = new Float32Array(n);
+      for (let k = 0; k < n; k++) lum[k] = 0.2126 * d[k * 4] + 0.7152 * d[k * 4 + 1] + 0.0722 * d[k * 4 + 2];
+      const sorted = Array.from(lum).sort((a, b) => a - b);
+      const lo = sorted[Math.floor(n * 0.02)], hi = sorted[Math.floor(n * 0.98)], span = Math.max(60, hi - lo), floor = Math.max(0, Math.min(lo, 255 - span));
+      // white point per channel: a cream or yellowed paper reads as white, not as a field of yellow specks
+      const top = [0, 1, 2].map((q) => { const v = []; for (let k = 0; k < n; k++) v.push(d[k * 4 + q]); v.sort((a, b) => a - b); return Math.max(floor + span * 0.6, v[Math.floor(n * 0.985)]); });
+      const px = new Float32Array(n * 3);
+      for (let k = 0; k < n; k++) {
+        const rgb = [0, 1, 2].map((q) => Math.min(255, Math.max(0, ((d[k * 4 + q] - floor) * 255) / Math.max(40, top[q] - floor))));
+        // near-greys stay grey (so a cream page doesn't speckle yellow); real colour gets pushed toward saturation
+        const m = (rgb[0] + rgb[1] + rgb[2]) / 3, chroma = Math.max(...rgb) - Math.min(...rgb);
+        const boost = chroma < 40 ? 1.5 * Math.max(0, (chroma - 12) / 28) : 1.5;
+        for (let q = 0; q < 3; q++) px[k * 3 + q] = Math.min(255, Math.max(0, m + (rgb[q] - m) * boost));
+      }
+      const dist = (r, gg, b, col) => { const t = TT[col], dr = r - t[0], dg = gg - t[1], db = b - t[2]; return 2 * dr * dr + 4 * dg * dg + 3 * db * db; };
+      const out = new Uint8Array(n), DAMP = 0.6;
+      const push = (x, y, e, f) => { if (x < 0 || x >= sw || y >= sh) return; const k = (y * sw + x) * 3; px[k] += e[0] * f; px[k + 1] += e[1] * f; px[k + 2] += e[2] * f; };
+      const pairs = [];
+      for (let a = 0; a < 8; a++) for (let b = a; b < 8; b++) pairs.push([a, b]);
+      for (let cy = 0; cy < sh / 3; cy++) for (let cx = 0; cx < sw / 2; cx++) {
+        let best = pairs[0], bestE = Infinity;
+        for (const pr of pairs) {
+          let e = 0;
+          for (let j = 0; j < 3; j++) for (let i = 0; i < 2; i++) {
+            const k = ((cy * 3 + j) * sw + cx * 2 + i) * 3;
+            e += Math.min(dist(px[k], px[k + 1], px[k + 2], pr[0]), dist(px[k], px[k + 1], px[k + 2], pr[1]));
+          }
+          if (e < bestE) { bestE = e; best = pr; }
+        }
+        for (let j = 0; j < 3; j++) for (let i = 0; i < 2; i++) {
+          const x = cx * 2 + i, y = cy * 3 + j, k = (y * sw + x) * 3;
+          const col = dist(px[k], px[k + 1], px[k + 2], best[0]) <= dist(px[k], px[k + 1], px[k + 2], best[1]) ? best[0] : best[1];
+          out[y * sw + x] = col;
+          const t = TT[col], e = [(px[k] - t[0]) * DAMP, (px[k + 1] - t[1]) * DAMP, (px[k + 2] - t[2]) * DAMP];
+          push(x + 1, y, e, 7 / 16); push(x - 1, y + 1, e, 3 / 16); push(x, y + 1, e, 5 / 16); push(x + 1, y + 1, e, 1 / 16);
+        }
+      }
+      return out;
+    }
+
+    function drawMosaic(ctx) {
+      const cv = $("mosaic"), m = L.mosaic;
+      if (!cover || !m || m.rows < 4) { cv.style.display = "none"; return; }
+      cv.style.display = "";
+      const sw = m.cols * 2, sh = m.rows * 3;
+      const key = [coverFor, sw, sh].join("|");
+      if (mosaicKey !== key) { mosaicBits = mosaicFrom(cover, sw, sh); mosaicKey = key; }
+      const s = sixelCanvas(cv, m, L.g, sw, sh);
+      paintSixels(s, sw, sh, (i, j) => mosaicBits[j * sw + i], ctx.params.separated === true);
+    }
+
+    // ---------- wiring ----------
+    let pageHTML = "", lyricHTML = "", drawnFor = null;
+
+    function updateBar(ctx) {
+      if (!L || !L.bar) return;
+      const b = L.bar, fill = $("fill"), bar = $("bar"), g = L.g;
+      Object.assign(bar.style, { top: b.r * g.ch + "px", left: b.c * g.cw + "px", width: b.w * g.cw + "px", height: g.ch + "px" });
+      const steps = b.w * 2, on = Math.round(ctx.track.progress * steps);
+      fill.style.width = (on * g.cw) / 2 + "px";
+      const e = $("elapsed");
+      if (e && e.textContent !== ctx.track.elapsed) e.textContent = ctx.track.elapsed;
+    }
+
+    Wallpaper.on("render", (ctx) => {
+      measureAdvance();
+      const g = grid();
+      css.setProperty("--ch", g.ch + "px");
+      css.setProperty("--cw", g.cw + "px");
+      css.setProperty("--fs", (g.cw / advance).toFixed(3) + "px");
+      css.setProperty("--x0", g.x0 + "px");
+      css.setProperty("--cols", g.cols);
+      css.setProperty("--gap", (ctx.params.separated === true ? Math.max(1, g.cw * 0.1) : 0) + "px");
+      css.setProperty("--sl", Math.max(2, Math.round(g.ch / 12)) + "px");
+
+      const html = buildPage(ctx);
+      if (html !== pageHTML) { $("rows").innerHTML = html; pageHTML = html; }
+      const ly = buildLyrics(ctx);
+      if (ly !== lyricHTML) { $("lyrics").innerHTML = ly; lyricHTML = ly; }
+      updateBar(ctx);
+
+      const want = ctx.track.coverKey || ctx.track.cover;
+      if (ctx.track.cover && coverFor !== want) {
+        const url = ctx.track.cover;
+        Wallpaper.hold(loadCover(url).then((c) => { cover = c; coverFor = want; drawnFor = null; }).catch(() => { cover = null; coverFor = want; }));
+      } else if (!ctx.track.cover) { cover = null; coverFor = null; }
+    });
+
+    Wallpaper.on("layout", (ctx) => {
+      if (!L) return;
+      const g = L.g;
+      const key = [coverFor, g.W, g.H, devicePixelRatio, ctx.params.separated, L.mosaic.r, L.mosaic.cols, L.banner && L.banner.word].join("|");
+      if (drawnFor === key) return;
+      drawnFor = key;
+      drawBanner(ctx);
+      drawMosaic(ctx);
+    });
+
+    Wallpaper.on("tick", (ctx) => {
+      const c = $("clock");
+      if (c) { const t = clockText(ctx); if (c.textContent !== t) c.textContent = t; }
+      updateBar(ctx);
+    });
+
+    addEventListener("resize", () => { pageHTML = ""; lyricHTML = ""; drawnFor = null; Wallpaper.refresh(); });
+  </script>
+</body>
+</html>

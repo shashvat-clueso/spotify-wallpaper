@@ -1,0 +1,91 @@
+{
+  "name": "Text Mode",
+  "description": "The cover redrawn in coloured characters, from dots in the shadows to @ signs in the light, and the lyric typed into a terminal prompt with earlier lines scrolling up like shell history. With beat sync, the characters step a notch brighter on every beat.",
+  "author": "Built-in",
+  "category": "lyrics",
+  "params": [
+    {
+      "key": "prompt",
+      "type": "color",
+      "label": "Prompt",
+      "default": "#7EE787"
+    },
+    {
+      "key": "text",
+      "type": "color",
+      "label": "Text",
+      "default": "#D9DEE5"
+    },
+    {
+      "key": "screen",
+      "type": "color",
+      "label": "Screen",
+      "default": "#0B0C10"
+    },
+    {
+      "key": "art",
+      "type": "select",
+      "label": "Characters",
+      "default": "cover",
+      "options": [
+        { "value": "cover", "label": "Cover colours" },
+        { "value": "phosphor", "label": "Prompt colour" }
+      ]
+    },
+    {
+      "key": "ramp",
+      "type": "select",
+      "label": "Character set",
+      "default": "classic",
+      "options": [
+        { "value": "classic", "label": "Classic  .:-=+*#%@" },
+        { "value": "detailed", "label": "Detailed (70 characters)" },
+        { "value": "blocks", "label": "Blocks ░▒▓█" }
+      ]
+    },
+    {
+      "key": "columns",
+      "type": "int",
+      "label": "Characters across",
+      "min": 48,
+      "max": 180,
+      "default": 96
+    },
+    {
+      "key": "history",
+      "type": "int",
+      "label": "Earlier lines shown",
+      "min": 0,
+      "max": 8,
+      "default": 4
+    },
+    {
+      "key": "size",
+      "type": "number",
+      "label": "Lyric size",
+      "min": 1.6,
+      "max": 5,
+      "step": 0.1,
+      "unit": "vmin",
+      "default": 2.9
+    },
+    {
+      "key": "beat",
+      "type": "bool",
+      "label": "Brighten on the beat",
+      "default": true
+    },
+    {
+      "key": "statusBar",
+      "type": "bool",
+      "label": "Status bar",
+      "default": true
+    },
+    {
+      "key": "font",
+      "type": "font",
+      "label": "Font",
+      "default": "SF Mono"
+    }
+  ]
+}

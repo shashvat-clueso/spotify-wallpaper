@@ -1,0 +1,63 @@
+{
+  "name": "One Bit",
+  "description": "The cover dithered to two inks, its darkest and lightest colours, like a HyperCard stack, with the lyric in a classic Mac window. Each new line redraws the picture top to bottom, like a slow old screen.",
+  "author": "Built-in",
+  "category": "print",
+  "params": [
+    {
+      "key": "inks",
+      "type": "select",
+      "label": "Inks",
+      "default": "cover",
+      "options": [
+        { "value": "cover", "label": "From the cover" },
+        { "value": "classic", "label": "Black and white" },
+        { "value": "custom", "label": "Custom" }
+      ]
+    },
+    {
+      "key": "ink",
+      "type": "color",
+      "label": "Custom ink",
+      "default": "#1B1A26"
+    },
+    {
+      "key": "paper",
+      "type": "color",
+      "label": "Custom paper",
+      "default": "#EFE9DC"
+    },
+    {
+      "key": "pixel",
+      "type": "number",
+      "label": "Pixel size",
+      "min": 2,
+      "max": 6,
+      "step": 0.5,
+      "default": 3
+    },
+    {
+      "key": "font",
+      "type": "select",
+      "label": "Window font",
+      "default": "geneva",
+      "options": [
+        { "value": "geneva", "label": "Geneva" },
+        { "value": "monaco", "label": "Monaco" },
+        { "value": "newyork", "label": "New York" }
+      ]
+    },
+    {
+      "key": "nextLine",
+      "type": "bool",
+      "label": "Show the next line",
+      "default": true
+    },
+    {
+      "key": "wipe",
+      "type": "bool",
+      "label": "Redraw on each line",
+      "default": true
+    }
+  ]
+}

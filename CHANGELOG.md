@@ -29,6 +29,12 @@ All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](
   frames advancing a frame per line, under a yellow subtitle), **Albers** (the cover's four strongest colours as
   nested squares that trade places each line), **Breathing Type** (the line's key word swelling with the beat in SF
   Pro's variable width) and **Receipt** (the song printing on a thermal slip, with a total and barcode at the end).
+- **Six more templates:** **One Bit** (the cover Atkinson-dithered to two inks, the lyric in a System 7 window that
+  redraws the picture top to bottom each line), **Teletext** (Page 888, the cover rebuilt from mosaic blocks in the
+  eight teletext colours), **Text Mode** (the cover as coloured ASCII that brightens on the beat, the lyric typed at a
+  shell prompt), **Contour Map** (the cover's brightness surveyed as slowly drifting terrain, its summit named after
+  the song), **Classic** (an iPod classic showing the song on its Now Playing screen) and **Stained Glass** (the cover
+  cut into leaded panes, one lighting up each line, the lyric on a parchment banner).
 - **Painted Cover comes alive:** the most striking word of each lyric line is lettered into the painting in brush
   strokes, then painted over; before a new cover goes on, the last painting replays as a ~4-second timelapse; fresh
   paint looks wet and dries to matte; a new "Match the genre" stroke style (rock in heavy impasto and knife,

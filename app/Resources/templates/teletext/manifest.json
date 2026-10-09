@@ -1,0 +1,67 @@
+{
+  "name": "Teletext",
+  "description": "Page 888, the subtitles page: the title in double height on a blue band, the lyric in yellow with past lines in green, and the cover rebuilt from chunky 2×3 mosaic blocks in teletext's eight colours.",
+  "author": "Built-in",
+  "category": "objects",
+  "params": [
+    {
+      "key": "band",
+      "type": "select",
+      "label": "Title band",
+      "default": "blue",
+      "options": [
+        { "value": "blue", "label": "Blue" },
+        { "value": "red", "label": "Red" },
+        { "value": "magenta", "label": "Magenta" },
+        { "value": "green", "label": "Green" }
+      ]
+    },
+    {
+      "key": "banner",
+      "type": "select",
+      "label": "Banner",
+      "default": "genre",
+      "options": [
+        { "value": "genre", "label": "The song's genre" },
+        { "value": "music", "label": "MUSIC" },
+        { "value": "none", "label": "None" }
+      ]
+    },
+    {
+      "key": "doubleHeight",
+      "type": "bool",
+      "label": "Current line in double height",
+      "default": true
+    },
+    {
+      "key": "separated",
+      "type": "bool",
+      "label": "Separated mosaics",
+      "default": false
+    },
+    {
+      "key": "crt",
+      "type": "bool",
+      "label": "CRT scanlines",
+      "default": true
+    },
+    {
+      "key": "page",
+      "type": "text",
+      "label": "Page number",
+      "default": "888"
+    },
+    {
+      "key": "service",
+      "type": "text",
+      "label": "Service name",
+      "default": "SPOTIFY"
+    },
+    {
+      "key": "clock24",
+      "type": "bool",
+      "label": "24-hour clock",
+      "default": true
+    }
+  ]
+}

@@ -1,0 +1,455 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  /* Layers, back to front: the window (canvas, drawn once per cover and screen size), the lit pane (a small canvas that
+     fades in on each new line), the light falling through (CSS gradients that only move with transform), the banner. */
+  :root { --serif: "Hoefler Text", "Iowan Old Style", Baskerville, Georgia, serif; }
+  html.face-baskerville { --serif: Baskerville, "Hoefler Text", Georgia, serif; }
+  html.face-iowan { --serif: "Iowan Old Style", "Hoefler Text", Georgia, serif; }
+  html.face-palatino { --serif: Palatino, "Palatino Linotype", "Hoefler Text", Georgia, serif; }
+  body { background: var(--param-lead, #16110F); }
+
+  canvas.window { position: absolute; left: 0; top: 0; width: 100vw; height: 100vh; opacity: 0; }
+  canvas.window.on { opacity: 1; }
+  .sw-live canvas.window { transition: opacity 1.6s ease; }
+
+  canvas.lit { position: absolute; opacity: 0; pointer-events: none; }
+  canvas.lit.on { opacity: calc(0.82 + var(--beat) * 0.18); }
+  .sw-live canvas.lit { transition: opacity 1.4s ease; will-change: opacity; }
+
+  /* Sunlight through the window: soft diagonal beams on a layer wider than the screen, sliding slowly across. */
+  .light { position: absolute; inset: 0; overflow: hidden; pointer-events: none; mix-blend-mode: screen; }
+  html:not(.param-rays) .light { display: none; }
+  .beams { position: absolute; top: -10vh; bottom: -10vh; left: -40vw; width: 180vw; transform: translateX(6vw);
+    background:
+      radial-gradient(40vmax 32vmax at 52% 6%, rgba(255, 236, 196, 0.30), transparent 70%),
+      linear-gradient(112deg, transparent 22%, rgba(255, 238, 205, 0.22) 27%, transparent 33%,
+        transparent 41%, rgba(255, 238, 205, 0.14) 44%, transparent 48%,
+        transparent 55%, rgba(255, 238, 205, 0.25) 60%, transparent 67%,
+        transparent 74%, rgba(255, 238, 205, 0.10) 77%, transparent 81%); }
+  .sw-live .beams { will-change: transform, opacity; animation: drift 70s ease-in-out infinite alternate, breathe 23s ease-in-out infinite alternate; }
+  .sw-live:not(.is-playing) .beams { animation-play-state: paused; }
+  @keyframes drift { from { transform: translateX(-14vw); } to { transform: translateX(22vw); } }
+  @keyframes breathe { from { opacity: 0.75; } to { opacity: 1; } }
+
+  /* ---------- the banner ---------- */
+  .banner { position: absolute; left: 50%; bottom: 5.5vh; transform: translateX(-50%); width: max-content;
+    max-width: 62vw; min-width: 30vmin; box-sizing: border-box; padding: 1.7vmin 5vmin 1.5vmin; text-align: center;
+    color: var(--param-ink, #3B2414); font-family: var(--serif);
+    background:
+      radial-gradient(120% 140% at 50% 40%, transparent 55%, rgba(120, 80, 30, 0.22)),
+      linear-gradient(178deg, rgba(255, 255, 255, 0.28), transparent 40%, rgba(110, 70, 20, 0.10)),
+      var(--param-parchment, #EFE2C2);
+    border: 0.36vmin solid var(--param-lead, #16110F);
+    box-shadow: inset 0 0 0 0.45vmin rgba(255, 250, 235, 0.35), inset 0 0 0 0.62vmin rgba(160, 118, 48, 0.75),
+      0 1.4vmin 3.6vmin rgba(0, 0, 0, 0.55); }
+  /* swallowtail ends of the scroll, tucked behind */
+  .banner::before, .banner::after { content: ""; position: absolute; top: 1.4vmin; bottom: -1.4vmin; width: 4.6vmin; z-index: -1;
+    background: linear-gradient(rgba(90, 55, 20, 0.30), rgba(70, 40, 12, 0.46)), var(--param-parchment, #EFE2C2);
+    filter: drop-shadow(0 0.6vmin 1vmin rgba(0, 0, 0, 0.5)); }
+  .banner::before { left: -3.6vmin; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 34% 50%); }
+  .banner::after { right: -3.6vmin; clip-path: polygon(0 0, 100% 0, 66% 50%, 100% 100%, 0 100%); }
+  .banner .main { font-size: var(--lyric-size, 4.2vmin); line-height: 1.12; font-weight: 600; font-variant: small-caps;
+    font-variant-caps: small-caps; letter-spacing: 0.03em; text-wrap: balance; overflow-wrap: break-word; }
+  .banner .main.orn { font-size: 5.4vmin; line-height: 1; letter-spacing: 0.6em; padding-left: 0.6em; font-weight: 400; }
+  .banner .sub { margin-top: 0.9vmin; font-size: 1.6vmin; line-height: 1.3; letter-spacing: 0.24em; font-variant-caps: all-small-caps;
+    font-weight: 500; opacity: 0.78; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .banner .sub i { font-style: normal; margin: 0 0.7em; opacity: 0.7; }
+
+  html.tall .banner { max-width: 82vw; bottom: 6vh; padding: 2vmin 5vmin 1.8vmin; }
+</style>
+</head>
+<body>
+  <canvas class="window" id="winA"></canvas>
+  <canvas class="window" id="winB"></canvas>
+  <canvas class="lit" id="litA"></canvas>
+  <canvas class="lit" id="litB"></canvas>
+  <div class="light"><div class="beams"></div></div>
+  <div class="banner" id="banner">
+    <div class="main" id="main" data-animate></div>
+    <div class="sub" id="sub"></div>
+  </div>
+
+  <script>
+  (() => {
+    const $ = (id) => document.getElementById(id);
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
+    const rng = (seed) => () => { seed = (seed + 0x6D2B79F5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const hex = (h) => { h = String(h || "#000").replace("#", ""); if (h.length === 3) h = h.replace(/./g, "$&$&"); const n = parseInt(h, 16) || 0; return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+
+    function rgb2hsl(r, g, b) {
+      r /= 255; g /= 255; b /= 255;
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+      if (!d) return [0, 0, l];
+      const s = d / (1 - Math.abs(2 * l - 1));
+      const h = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      return [h / 6, s, l];
+    }
+    function hsl2rgb(h, s, l) {
+      const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h * 6) % 2) - 1)), m = l - c / 2;
+      const k = Math.floor(h * 6) % 6;
+      const [r, g, b] = [[c, x, 0], [x, c, 0], [0, c, x], [0, x, c], [x, 0, c], [c, 0, x]][k];
+      return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+    }
+    const mixc = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+    const css = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
+
+    // ---------- the cover's pixels ----------
+    let pix = null, pixKey = null, loading = null;
+    function loadCover(url, key) {
+      if (pixKey === key && pix) return Promise.resolve(pix);
+      if (loading && loading.key === key) return loading.p;
+      const p = (async () => {
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+        if (pixKey !== key) { pix = img; pixKey = key; }
+        return img;
+      })();
+      loading = { key, p };
+      return p;
+    }
+
+    // ---------- tessellation (per cover, screen size and settings) ----------
+    /** Samples the cover over the screen: a crop that leans toward the screen's shape (stretching the rest, which
+     *  glass forgives) so ultrawide and portrait screens keep most of the picture. */
+    function sampleCover(img, W, H) {
+      const sw = Math.round(clamp(W / 4.5, 220, 420)), sh = Math.max(40, Math.round(sw * H / W));
+      const c = document.createElement("canvas"); c.width = sw; c.height = sh;
+      const g = c.getContext("2d", { willReadFrequently: true });
+      const iw = img.naturalWidth, ih = img.naturalHeight, want = Math.pow(W / H, 0.45);
+      let cw = iw, ch = iw / want;
+      if (ch > ih) { ch = ih; cw = ih * want; }
+      g.drawImage(img, (iw - cw) / 2, (ih - ch) / 2, cw, ch, 0, 0, sw, sh);
+      return { sw, sh, d: g.getImageData(0, 0, sw, sh).data };
+    }
+
+    /** How much is going on around each sample: edge strength of lightness and colour, softened and normalised 0–1. */
+    function detailMap(S) {
+      const { sw, sh, d } = S, L = new Float32Array(sw * sh), E = new Float32Array(sw * sh);
+      for (let i = 0; i < sw * sh; i++) L[i] = 0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2];
+      const at = (x, y) => Math.min(sw - 1, Math.max(0, x)) + Math.min(sh - 1, Math.max(0, y)) * sw;
+      for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
+        const gx = L[at(x + 1, y)] - L[at(x - 1, y)], gy = L[at(x, y + 1)] - L[at(x, y - 1)];
+        const a = at(x + 1, y) * 4, b = at(x - 1, y) * 4, c = at(x, y + 1) * 4, e = at(x, y - 1) * 4;
+        const chroma = Math.abs(d[a] - d[b]) + Math.abs(d[a + 2] - d[b + 2]) + Math.abs(d[c] - d[e]) + Math.abs(d[c + 2] - d[e + 2]);
+        E[y * sw + x] = Math.hypot(gx, gy) + chroma * 0.25;
+      }
+      // box blur twice (radius 3)
+      const tmp = new Float32Array(sw * sh);
+      for (let pass = 0; pass < 2; pass++) {
+        for (let y = 0; y < sh; y++) { let s = 0; for (let x = -3; x <= 3; x++) s += E[at(x, y)]; for (let x = 0; x < sw; x++) { tmp[y * sw + x] = s / 7; s += E[at(x + 4, y)] - E[at(x - 3, y)]; } }
+        for (let x = 0; x < sw; x++) { let s = 0; for (let y = -3; y <= 3; y++) s += tmp[at(x, y)]; for (let y = 0; y < sh; y++) { E[y * sw + x] = s / 7; s += tmp[at(x, y + 4)] - tmp[at(x, y - 3)]; } }
+      }
+      const sorted = Float32Array.from(E).sort(), hi = sorted[Math.floor(sorted.length * 0.92)] || 1;
+      for (let i = 0; i < E.length; i++) E[i] = Math.min(1, E[i] / hi);
+      return E;
+    }
+
+    /** Blue-noise seeds by dart throwing with a radius that shrinks where the cover has detail. */
+    function seeds(W, H, E, S, target, detail, rand, scale = 1) {
+      const area = W * H, r0 = Math.sqrt(area / target) * 0.9 * scale;
+      const rad = (x, y) => {
+        const e = E[Math.min(S.sh - 1, (y / H * S.sh) | 0) * S.sw + Math.min(S.sw - 1, (x / W * S.sw) | 0)];
+        return r0 * (1.32 - detail * 0.95 * Math.pow(e, 0.7));
+      };
+      const rmin = r0 * (1.32 - detail * 0.95), cell = Math.max(4, rmin), gw = Math.ceil(W / cell), gh = Math.ceil(H / cell);
+      const grid = Array.from({ length: gw * gh }, () => []);
+      const pts = [], reach = Math.ceil((r0 * 1.35) / cell);
+      const tries = target * 40;
+      for (let t = 0; t < tries; t++) {
+        const x = rand() * W, y = rand() * H, r = rad(x, y), gx = (x / cell) | 0, gy = (y / cell) | 0;
+        let ok = true;
+        for (let j = Math.max(0, gy - reach); ok && j <= Math.min(gh - 1, gy + reach); j++)
+          for (let i = Math.max(0, gx - reach); ok && i <= Math.min(gw - 1, gx + reach); i++)
+            for (const q of grid[j * gw + i]) { const dx = q[0] - x, dy = q[1] - y; if (dx * dx + dy * dy < Math.min(r, q[2]) ** 2) { ok = false; break; } }
+        if (!ok) continue;
+        const p = [x, y, r];
+        pts.push(p); grid[gy * gw + gx].push(p);
+      }
+      return pts;
+    }
+
+    /** Exact Voronoi cells: each seed's rectangle clipped by the half-planes of its nearest neighbours. */
+    function cells(pts, W, H) {
+      const n = pts.length, out = new Array(n);
+      const cell = Math.sqrt((W * H) / n) * 1.2, gw = Math.ceil(W / cell), gh = Math.ceil(H / cell);
+      const grid = Array.from({ length: gw * gh }, () => []);
+      pts.forEach((p, k) => grid[Math.min(gh - 1, (p[1] / cell) | 0) * gw + Math.min(gw - 1, (p[0] / cell) | 0)].push(k));
+      for (let k = 0; k < n; k++) {
+        const [x, y] = pts[k];
+        let poly = [[0, 0], [W, 0], [W, H], [0, H]];
+        const gx = Math.min(gw - 1, (x / cell) | 0), gy = Math.min(gh - 1, (y / cell) | 0);
+        for (let ring = 0; ring < Math.max(gw, gh); ring++) {
+          // clip by every seed in this ring of grid cells
+          for (let j = gy - ring; j <= gy + ring; j++) for (let i = gx - ring; i <= gx + ring; i++) {
+            if (Math.max(Math.abs(i - gx), Math.abs(j - gy)) !== ring || i < 0 || j < 0 || i >= gw || j >= gh) continue;
+            for (const m of grid[j * gw + i]) if (m !== k) poly = clip(poly, x, y, pts[m][0], pts[m][1]);
+          }
+          // done once no seed beyond this ring can reach the cell: every vertex is closer than half the ring distance
+          let R = 0; for (const v of poly) R = Math.max(R, Math.hypot(v[0] - x, v[1] - y));
+          if (ring * cell >= 2 * R + cell) break;
+        }
+        out[k] = poly;
+      }
+      return out;
+    }
+    function clip(poly, ax, ay, bx, by) {
+      const nx = bx - ax, ny = by - ay, c = (nx * (ax + bx) + ny * (ay + by)) / 2, out = [];
+      for (let i = 0; i < poly.length; i++) {
+        const p = poly[i], q = poly[(i + 1) % poly.length];
+        const dp = p[0] * nx + p[1] * ny - c, dq = q[0] * nx + q[1] * ny - c;
+        if (dp <= 0) out.push(p);
+        if ((dp < 0 && dq > 0) || (dp > 0 && dq < 0)) { const t = dp / (dp - dq); out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); }
+      }
+      return out;
+    }
+    function centroid(poly) {
+      let a = 0, cx = 0, cy = 0;
+      for (let i = 0; i < poly.length; i++) {
+        const p = poly[i], q = poly[(i + 1) % poly.length], f = p[0] * q[1] - q[0] * p[1];
+        a += f; cx += (p[0] + q[0]) * f; cy += (p[1] + q[1]) * f;
+      }
+      a /= 2;
+      return a ? [cx / (6 * a), cy / (6 * a), Math.abs(a)] : [poly[0][0], poly[0][1], 0];
+    }
+
+    /** Each pane's colour: the average of the cover under it, made into glass (richer, never muddy or blown out). */
+    function paneColours(pts, polys, S, W, H, richness, rand) {
+      const n = pts.length, sum = new Float64Array(n * 4);
+      // which pane owns each sample: nearest seed, via a coarse grid
+      const cell = Math.sqrt((W * H) / n) * 1.2, gw = Math.ceil(W / cell), gh = Math.ceil(H / cell);
+      const grid = Array.from({ length: gw * gh }, () => []);
+      pts.forEach((p, k) => grid[Math.min(gh - 1, (p[1] / cell) | 0) * gw + Math.min(gw - 1, (p[0] / cell) | 0)].push(k));
+      const { sw, sh, d } = S;
+      for (let sy = 0; sy < sh; sy++) for (let sx = 0; sx < sw; sx++) {
+        const x = (sx + 0.5) / sw * W, y = (sy + 0.5) / sh * H, gx = Math.min(gw - 1, (x / cell) | 0), gy = Math.min(gh - 1, (y / cell) | 0);
+        let best = -1, bd = Infinity;
+        for (let ring = 0; ring < 4 && (best < 0 || ring < 3); ring++)
+          for (let j = gy - ring; j <= gy + ring; j++) for (let i = gx - ring; i <= gx + ring; i++) {
+            if (Math.max(Math.abs(i - gx), Math.abs(j - gy)) !== ring || i < 0 || j < 0 || i >= gw || j >= gh) continue;
+            for (const m of grid[j * gw + i]) { const dx = pts[m][0] - x, dy = pts[m][1] - y, dd = dx * dx + dy * dy; if (dd < bd) { bd = dd; best = m; } }
+          }
+        const o = (sy * sw + sx) * 4;
+        sum[best * 4] += d[o]; sum[best * 4 + 1] += d[o + 1]; sum[best * 4 + 2] += d[o + 2]; sum[best * 4 + 3]++;
+      }
+      const out = [];
+      for (let k = 0; k < n; k++) {
+        let r, g, b;
+        if (sum[k * 4 + 3]) { const c = sum[k * 4 + 3]; r = sum[k * 4] / c; g = sum[k * 4 + 1] / c; b = sum[k * 4 + 2] / c; }
+        else {  // a pane smaller than a sample: read the cover at its centre
+          const c = centroid(polys[k]), o = (Math.min(sh - 1, (c[1] / H * sh) | 0) * sw + Math.min(sw - 1, (c[0] / W * sw) | 0)) * 4;
+          r = d[o]; g = d[o + 1]; b = d[o + 2];
+        }
+        let [h, s, l] = rgb2hsl(r, g, b);
+        // greys become antique clear glass: a faint amber or blue-green cast, like old hand-blown sheets
+        if (s < 0.1 || l < 0.06 || l > 0.96) {
+          const warm = rand() < 0.55;
+          h = warm ? 0.11 + rand() * 0.03 : 0.5 + rand() * 0.08;
+          s = Math.max(s, (l > 0.5 ? 0.18 : 0.28) * Math.min(1, richness));
+        }
+        s = clamp(s * richness + 0.06 * richness, 0, 1);
+        l = 0.12 + 0.72 * Math.pow(l, 0.92) + (rand() - 0.5) * 0.06;  // pull out of black and white, hand-made variation
+        out.push({ h, s, l: clamp(l, 0.1, 0.86) });
+      }
+      return out;
+    }
+
+    // ---------- drawing ----------
+    let grain = null;
+    const grainReady = new Promise((res) => { const t = new Image(); t.onload = () => { grain = t; res(); }; t.onerror = res; t.src = "/runtime/grain.png"; });
+
+    function trace(g, poly) {
+      g.moveTo(poly[0][0], poly[0][1]);
+      for (let i = 1; i < poly.length; i++) g.lineTo(poly[i][0], poly[i][1]);
+      g.closePath();
+    }
+
+    function drawWindow(canvas, T, P) {
+      const { W, H, polys, cols, cents } = T, dpr = T.dpr;
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+      const g = canvas.getContext("2d");
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const lead = hex(P.lead), lw = T.lw, rs = rng(T.seed ^ 0x51ed);
+      g.fillStyle = css(lead); g.fillRect(0, 0, W, H);
+      // panes: a radial wash, lighter where the light comes from (upper left), darker toward the came
+      for (let k = 0; k < polys.length; k++) {
+        const { h, s, l } = cols[k], [cx, cy, area] = cents[k], R = Math.sqrt(area / Math.PI) * 1.25;
+        const gr = g.createRadialGradient(cx - R * 0.3, cy - R * 0.38, R * 0.05, cx, cy, R * 1.15);
+        gr.addColorStop(0, css(hsl2rgb(h, clamp(s * 0.92, 0, 1), clamp(l + 0.13, 0, 0.93))));
+        gr.addColorStop(0.55, css(hsl2rgb(h, s, l)));
+        gr.addColorStop(1, css(hsl2rgb(h, clamp(s * 1.05, 0, 1), clamp(l - 0.12, 0.05, 1))));
+        g.fillStyle = gr;
+        g.beginPath(); trace(g, polys[k]); g.fill();
+        // cathedral glass isn't even: a few soft waves of thicker and thinner glass run across each pane
+        const a = rs() * Math.PI, ux = Math.cos(a) * R, uy = Math.sin(a) * R;
+        const wv = g.createLinearGradient(cx - ux, cy - uy, cx + ux, cy + uy);
+        for (let i = 0, t = 0; i < 6 && t <= 1; i++, t = Math.min(1, t + 0.12 + rs() * 0.22)) wv.addColorStop(t, i % 2 ? "rgba(255,250,235,0.13)" : "rgba(0,0,0,0.08)");
+        g.fillStyle = wv; g.fill();
+      }
+      // the glass's own texture: big soft mottles, then fine seedy grain
+      const mot = document.createElement("canvas"), mw = Math.ceil(W / 18), mh = Math.ceil(H / 18);
+      mot.width = mw; mot.height = mh;
+      const mg = mot.getContext("2d"), md = mg.createImageData(mw, mh), r2 = rng(T.seed ^ 0x9e37);
+      for (let i = 0; i < mw * mh; i++) { const v = 78 + r2() * 100; md.data[i * 4] = md.data[i * 4 + 1] = md.data[i * 4 + 2] = v; md.data[i * 4 + 3] = 255; }
+      mg.putImageData(md, 0, 0);
+      g.save();
+      g.globalCompositeOperation = "soft-light"; g.globalAlpha = 0.7; g.imageSmoothingQuality = "high";
+      g.drawImage(mot, 0, 0, W, H);
+      if (grain) {
+        g.globalCompositeOperation = "overlay"; g.globalAlpha = 0.16;
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.fillStyle = g.createPattern(grain, "repeat"); g.fillRect(0, 0, canvas.width, canvas.height);
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      g.restore();
+      // a falloff toward the edges of the screen, as if seen from inside a dim nave
+      const vg = g.createRadialGradient(W / 2, H * 0.42, Math.min(W, H) * 0.35, W / 2, H * 0.45, Math.hypot(W, H) * 0.62);
+      vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(8,4,2,0.42)");
+      g.fillStyle = vg; g.fillRect(0, 0, W, H);
+      // lead: a soft shadow on the glass along each came, the came itself, then a thin bevel highlight
+      const path = new Path2D();
+      for (const p of polys) { path.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length; i++) path.lineTo(p[i][0], p[i][1]); path.closePath(); }
+      g.lineJoin = "round"; g.lineCap = "round";
+      g.strokeStyle = css(lead, 0.28); g.lineWidth = lw * 2.8; g.stroke(path);
+      g.strokeStyle = css(lead); g.lineWidth = lw; g.stroke(path);
+      g.save();
+      g.translate(-lw * 0.16, -lw * 0.2);
+      g.strokeStyle = "rgba(255, 238, 214, 0.16)"; g.lineWidth = Math.max(0.6, lw * 0.26); g.stroke(path);
+      g.restore();
+      // the frame round the window
+      g.strokeStyle = css(lead); g.lineWidth = lw * 3; g.strokeRect(0, 0, W, H);
+    }
+
+    /** The lit pane: its glass brightened from behind with a bloom that spills over the lead, on its own small canvas. */
+    function drawLit(canvas, T, k, P) {
+      const poly = T.polys[k], { h, s, l } = T.cols[k], dpr = T.dpr, lw = T.lw;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const [x, y] of poly) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+      const R = Math.sqrt(T.cents[k][2] / Math.PI), m = R * 0.9 + lw * 4;
+      const bx = x0 - m, by = y0 - m, bw = x1 - x0 + 2 * m, bh = y1 - y0 + 2 * m;
+      Object.assign(canvas.style, { left: bx + "px", top: by + "px", width: bw + "px", height: bh + "px" });
+      canvas.width = Math.ceil(bw * dpr); canvas.height = Math.ceil(bh * dpr);
+      const g = canvas.getContext("2d");
+      g.setTransform(dpr, 0, 0, dpr, -bx * dpr, -by * dpr);
+      const bright = hsl2rgb(h, clamp(s * 1.15 + 0.15, 0, 1), clamp(l * 0.35 + 0.5, 0, 0.74));
+      const hot = hsl2rgb(h, clamp(s * 0.8 + 0.1, 0, 1), 0.95);
+      const [cx, cy] = T.cents[k];
+      // the bloom: light spilling out over the lead and the neighbouring glass
+      const halo = g.createRadialGradient(cx, cy, R * 0.3, cx, cy, R + m * 0.95);
+      halo.addColorStop(0, css(bright, 0.55)); halo.addColorStop(0.45, css(bright, 0.22)); halo.addColorStop(1, css(bright, 0));
+      g.fillStyle = halo; g.fillRect(bx, by, bw, bh);
+      const gr = g.createRadialGradient(cx - R * 0.15, cy - R * 0.2, 0, cx, cy, R * 1.25);
+      gr.addColorStop(0, css(hot)); gr.addColorStop(0.45, css(mixc(hot, bright, 0.5))); gr.addColorStop(1, css(bright));
+      g.fillStyle = gr; g.beginPath(); trace(g, poly); g.fill();
+      g.lineJoin = "round";
+      g.strokeStyle = css(hex(P.lead)); g.lineWidth = lw; g.beginPath(); trace(g, poly); g.stroke();
+    }
+
+    // ---------- state ----------
+    let tess = null, tessKey = null, front = "winA", litFront = "litA", litFor = null;
+
+    function settingsKey(P) { return [P.panes, P.detail, P.richness, P.lead, P.leadWidth].join("|"); }
+
+    /** Builds (or reuses) the window for this cover and screen; draws it into the back canvas and fades it in. */
+    function ensureWindow(ctx) {
+      if (!pix) return;
+      const W = innerWidth, H = innerHeight, dpr = Math.max(1, devicePixelRatio || 1), P = ctx.params;
+      const key = [pixKey, W, H, dpr, settingsKey(P)].join("#");
+      if (key === tessKey) return;
+      const t0 = performance.now();
+      const seed = hashStr(String(pixKey)), rand = rng(seed);
+      const S = sampleCover(pix, W, H), E = detailMap(S);
+      const target = Math.round((+P.panes || 380) * clamp(Math.sqrt((W / H) / 1.6), 0.8, 1.35));
+      const detail = clamp(+(P.detail ?? 0.8), 0, 1);
+      let pts = seeds(W, H, E, S, target, detail, rng(seed));
+      // busy covers pack in more panes and calm ones fewer; one correction keeps the count near the setting
+      if (pts.length > target * 1.2 || pts.length < target * 0.83) pts = seeds(W, H, E, S, target, detail, rng(seed), Math.sqrt(pts.length / target));
+      const polys = cells(pts, W, H);
+      const cols = paneColours(pts, polys, S, W, H, +(P.richness ?? 1.35), rand);
+      const vmin = Math.min(W, H) / 100;
+      tess = { W, H, dpr, seed, pts, polys, cols, cents: polys.map(centroid), lw: Math.max(1.2, (+P.leadWidth || 0.55) * vmin) };
+      tessKey = key;
+      const back = front === "winA" ? "winB" : "winA";
+      drawWindow($(back), tess, P);
+      $(back).classList.add("on"); $(front).classList.remove("on");
+      front = back;
+      litFor = null;
+      window.__sgTiming = { ms: Math.round(performance.now() - t0), panes: pts.length };
+    }
+
+    /** One pane lights up per line: chosen from the line, away from the banner and the screen's edges. */
+    function light(ctx) {
+      if (!tess) return;
+      const L = ctx.lyrics, on = ctx.params.glow !== false && L.hasLyrics && L.index >= 0 && !L.isInstrumental;
+      const key = on ? tessKey + "@" + ctx.track.id + ":" + L.index : "off";
+      if (key === litFor) return;
+      litFor = key;
+      const back = litFront === "litA" ? "litB" : "litA";
+      $(litFront).classList.remove("on");
+      litFront = back;
+      if (!on) return;
+      const b = $("banner").getBoundingClientRect(), pad = Math.min(tess.W, tess.H) * 0.04, T = tess;
+      const areas = T.cents.map((c) => c[2]).sort((a, b) => a - b), floor = areas[Math.floor(areas.length * 0.35)];
+      const ok = [];
+      T.cents.forEach(([x, y, a], k) => {
+        if (a < floor || x < pad * 2 || y < pad * 2 || x > T.W - pad * 2 || y > T.H - pad * 2) return;
+        if (x > b.left - pad && x < b.right + pad && y > b.top - pad * 2 && y < b.bottom + pad) return;
+        ok.push(k);
+      });
+      if (!ok.length) return;
+      const k = ok[hashStr(ctx.track.id + ":" + L.index) % ok.length];
+      drawLit($(back), T, k, ctx.params);
+      void $(back).offsetWidth;
+      $(back).classList.add("on");
+    }
+
+    // ---------- the banner ----------
+    function bannerText(ctx) {
+      const t = ctx.track, L = ctx.lyrics, credit = [t.title, t.artist].filter(Boolean);
+      if (ctx.focus || !L.hasLyrics) return { main: t.title || "", sub: ctx.focus ? [t.artist, t.album].filter(Boolean) : [t.artist, t.album].filter(Boolean) };
+      if (L.index < 0) return { main: t.title || "", sub: [t.artist, t.album].filter(Boolean) };
+      if (L.isInstrumental) return { main: "❦", orn: true, sub: credit };
+      return { main: L.current.replace(/(\w)'(\w)/g, "$1\u2019$2"), sub: credit };
+    }
+    const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+    function fitBanner() {
+      const main = $("main"), vmin = Math.min(innerWidth, innerHeight) / 100;
+      let size = (innerWidth < innerHeight ? 5 : 4.4) * vmin;
+      main.style.setProperty("--lyric-size", size + "px");
+      const lh = () => parseFloat(getComputedStyle(main).lineHeight) || size * 1.12;
+      for (let n = 0; n < 14 && main.scrollHeight > lh() * 2.2 && size > 2.2 * vmin; n++) {
+        size *= 0.92; main.style.setProperty("--lyric-size", size + "px");
+      }
+    }
+
+    Wallpaper.on("render", (ctx) => {
+      const root = document.documentElement;
+      for (const f of ["baskerville", "iowan", "palatino"]) root.classList.toggle("face-" + f, ctx.params.face === f);
+      root.classList.toggle("tall", innerWidth < innerHeight);
+      const b = bannerText(ctx);
+      const main = $("main");
+      if (main.textContent !== b.main) main.textContent = b.main;
+      main.classList.toggle("orn", !!b.orn);
+      const sub = b.sub.map(esc).join("<i>·</i>");
+      if ($("sub").innerHTML !== sub) $("sub").innerHTML = sub;
+      const key = ctx.track.coverKey || ctx.track.cover;
+      if (ctx.track.cover && key !== pixKey) {
+        Wallpaper.hold(Promise.all([loadCover(ctx.track.cover, key), grainReady])
+          .then(() => { if (Wallpaper.ctx) ensureWindow(Wallpaper.ctx); })
+          .catch(() => {}));
+      }
+    });
+    Wallpaper.on("layout", (ctx) => { fitBanner(); ensureWindow(ctx); light(ctx); });
+    let rz = null;
+    addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => Wallpaper.refresh(), 200); });
+  })();
+  </script>
+</body>
+</html>
