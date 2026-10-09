@@ -8,6 +8,7 @@ final class BuilderWindowController: NSWindowController, WKScriptMessageHandler,
     private let engine: Engine
     private let store: TemplateStore
     private var webView: WKWebView!
+    private var recovery: ReloadOnCrash?
     private var strip: DragStrip!
     private static let barHeight: CGFloat = 52
     private(set) var templateID: String?
@@ -44,6 +45,7 @@ final class BuilderWindowController: NSWindowController, WKScriptMessageHandler,
         strip.autoresizingMask = [.width, .minYMargin]
         container.addSubview(strip)
         window.contentView = container
+        recovery = ReloadOnCrash(webView)
         webView.load(URLRequest(url: URL(string: "sw://app/ui/builder.html")!))
     }
 

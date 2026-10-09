@@ -282,6 +282,67 @@
     }
   }
 
+  /** A dry flat brush dragged across the canvas: many fine bristles side by side along a gently curved path, each
+   *  skipping where it runs short of paint and giving out at its own point near the end, so the paint underneath
+   *  shows through in streaks. Drawn in short butt-capped steps, a frame's worth at a time, so translucent bristles
+   *  never double up at the joins. */
+  class Dry extends Timed {
+    constructor(o, tempo, owner) {
+      super(o, tempo, owner);
+      this.bend = o.bend ?? rand(-0.15, 0.15); this.alpha = o.alpha ?? 0.9; this.k = 0;
+      const n = clamp(Math.round(this.w / 1.4), 8, 46), j = o.jitter ?? 14;
+      this.br = Array.from({ length: n }, (_, i) => {
+        const gaps = [];  // [from, to) stretches of the length (0–1) where this bristle carries no paint
+        for (let s = rand(0.1, 0.4); s < 1; s += rand(0.06, 0.22)) {
+          const g = rand(0.01, 0.05) * (0.4 + 1.6 * s);  // skips get longer as the brush dries
+          if (Math.random() < 0.25 + 0.6 * s) gaps.push([s, s + g]);
+          s += g;
+        }
+        return {
+          o: (i / (n - 1) - 0.5 + rand(-0.4, 0.4) / n) * this.w,
+          end: i % 5 === 0 ? rand(0.45, 0.8) : rand(0.78, 1),  // where it gives out
+          start: Math.pow(Math.random(), 1.6) * 0.14,           // bristles touch down raggedly, not on one line
+          lag: rand(0, 0.06),                                   // and a touch apart in time
+          lw: Math.max(0.6, (this.w / n) * rand(0.7, 1.5)),
+          a: rand(0.4, 0.95), gaps,
+          cs: css(shade(this.col.map((v) => v + rand(-j * 0.3, j * 0.3)), rand(-j, j))),
+        };
+      });
+    }
+    /** Centre line and normal at s ∈ [0, 1]. */
+    at(s) {
+      const dx = Math.cos(this.a), dy = Math.sin(this.a), L = this.len, B = this.bend * L * 2, off = B * s * (1 - s);
+      const tx = dx * L - dy * B * (1 - 2 * s), ty = dy * L + dx * B * (1 - 2 * s), tl = Math.hypot(tx, ty) || 1;
+      return [this.x + dx * (s - 0.5) * L - dy * off, this.y + dy * (s - 0.5) * L + dx * off, -ty / tl, tx / tl];
+    }
+    draw(g, k) {
+      const k0 = this.k;
+      this.k = k;
+      if (k <= k0) return;
+      const ds = Math.min(0.05, 2.5 / Math.max(1, this.len));
+      g.lineCap = "butt"; g.lineJoin = "round";
+      for (const b of this.br) {
+        const f = (t) => b.start + clamp((t - b.lag) / (1 - b.lag), 0, 1) * (b.end - b.start);
+        const s0 = k0 > 0 ? f(k0) : b.start, s1 = f(k);
+        if (s1 <= s0) continue;
+        g.globalAlpha = this.alpha * b.a; g.strokeStyle = b.cs; g.lineWidth = b.lw; g.beginPath();
+        let last = null;
+        for (let s = s0; s < s1 + 1e-9; s += ds) {
+          const t = Math.min(s, s1);
+          if (b.gaps.some(([a, z]) => t >= a && t < z)) { last = null; continue; }
+          const [cx, cy, nx, ny] = this.at(t), px = cx + nx * b.o, py = cy + ny * b.o;
+          // the last stretch before the bristle gives out thins to nothing
+          const w = b.lw * Math.min(clamp((b.end - t) / 0.12, 0.3, 1), clamp((t - b.start) / 0.05, 0.45, 1));
+          if (Math.abs(w - g.lineWidth) > 0.08) { g.stroke(); g.beginPath(); g.lineWidth = w; if (last) g.moveTo(last[0], last[1]); }
+          if (last) g.lineTo(px, py); else g.moveTo(px, py);
+          last = [px, py];
+        }
+        g.stroke();
+      }
+      g.lineCap = "round";
+    }
+  }
+
   function studio(p) {
     const g = p.drawingContext || p;
     let strokes = [];
@@ -316,11 +377,7 @@
       /** A patch of short parallel marks centred on (x, y): `len` long, spread over `width`, `lines` of them. */
       hatch(o) { return add(new Hatch(o, s.tempo, s)); },
       /** A dry bristle drag centred on (x, y) with the knife's options: streaky, runs out of paint, shows what's under. */
-      dry(o) {
-        const size = o.width || 8, step = size * 0.4, len = o.len || 20, a = o.a || 0;
-        return s.stroke({ dry: 0.75, jitter: 16, alpha: 0.8, ...o, size, step, len: Math.max(2, len / step),
-          x: o.x - Math.cos(a) * len / 2, y: o.y - Math.sin(a) * len / 2 });
-      },
+      dry(o) { return add(new Dry(o, s.tempo, s)); },
       /** Optional clip rectangle { x, y, w, h } every stroke is drawn inside. */
       clip: null,
       /** A short, round touch of paint. */

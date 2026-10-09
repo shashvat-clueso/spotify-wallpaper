@@ -1,0 +1,84 @@
+{
+  "name": "Contour Map",
+  "description": "The cover's light read as high ground and drawn as a survey sheet: contour lines in the cover's colours, the highest point named after the song, and the lyric as the map's caption. The land drifts slowly while the song plays.",
+  "author": "Built-in",
+  "category": "calm",
+  "params": [
+    {
+      "key": "sheet",
+      "type": "select",
+      "label": "Sheet",
+      "default": "night",
+      "options": [
+        { "value": "night", "label": "Night" },
+        { "value": "paper", "label": "Paper" },
+        { "value": "cover", "label": "Cover" }
+      ]
+    },
+    {
+      "key": "lines",
+      "type": "select",
+      "label": "Line colours",
+      "default": "cover",
+      "options": [
+        { "value": "cover", "label": "From the cover" },
+        { "value": "classic", "label": "Classic relief" },
+        { "value": "ink", "label": "One ink" }
+      ]
+    },
+    {
+      "key": "ink",
+      "type": "color",
+      "label": "Ink (one-ink lines)",
+      "default": "auto:light"
+    },
+    {
+      "key": "levels",
+      "type": "int",
+      "label": "Contours",
+      "min": 10,
+      "max": 40,
+      "default": 24
+    },
+    {
+      "key": "relief",
+      "type": "bool",
+      "label": "Hill shading",
+      "default": true
+    },
+    {
+      "key": "drift",
+      "type": "bool",
+      "label": "Drifting terrain",
+      "default": true
+    },
+    {
+      "key": "grid",
+      "type": "bool",
+      "label": "Grid and spot heights",
+      "default": true
+    },
+    {
+      "key": "units",
+      "type": "select",
+      "label": "Heights in",
+      "default": "m",
+      "options": [
+        { "value": "m", "label": "Metres" },
+        { "value": "ft", "label": "Feet" }
+      ]
+    },
+    {
+      "key": "titleFont",
+      "type": "font",
+      "label": "Title font",
+      "default": "SF Pro Variable"
+    },
+    {
+      "key": "captionFont",
+      "type": "font",
+      "label": "Caption font",
+      "default": "New York"
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import WebKit
 /// "What's New": the changelog (CHANGELOG.md, bundled at build time), shown from the menu and once after each update.
 @MainActor
 final class WhatsNewWindowController: NSWindowController, WKScriptMessageHandler, NSWindowDelegate {
+    private var recovery: ReloadOnCrash?
     private static let barHeight: CGFloat = 52
 
     init(engine: Engine) {
@@ -32,6 +33,7 @@ final class WhatsNewWindowController: NSWindowController, WKScriptMessageHandler
         container.addSubview(strip)
         window.contentView = container
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        recovery = ReloadOnCrash(webView)
         webView.load(URLRequest(url: URL(string: "sw://app/ui/changelog.html?v=\(version)")!))
     }
 

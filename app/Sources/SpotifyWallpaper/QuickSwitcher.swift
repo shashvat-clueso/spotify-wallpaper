@@ -10,6 +10,7 @@ final class QuickSwitcher: NSObject, WKScriptMessageHandler, NSWindowDelegate {
     private let store: TemplateStore
     private var panel: SwitcherPanel?
     private var webView: WKWebView?
+    private var recovery: ReloadOnCrash?
     private var ready = false
     private var waitingToShow = false
     private var closing = false
@@ -133,6 +134,7 @@ final class QuickSwitcher: NSObject, WKScriptMessageHandler, NSWindowDelegate {
         web.autoresizingMask = [.width, .height]
         container.addSubview(web)
         p.contentView = container
+        recovery = ReloadOnCrash(web)
         web.load(URLRequest(url: URL(string: "sw://app/ui/switcher.html")!))
         panel = p
         webView = web

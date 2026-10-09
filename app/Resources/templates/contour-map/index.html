@@ -1,0 +1,619 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/runtime/runtime.css">
+<script src="/runtime/runtime.js"></script>
+<style>
+  /* A survey sheet. The terrain (relief shading + contours) is drawn on two canvases inside the neatline; the sheet's
+     margin carries grid ticks; the legend cartouche holds the song and the lyric as the map's caption.
+     Colours come from JS as --ground / --margin / --text / --soft so the three sheet styles share one stylesheet. */
+  :root { --m: 2.6vmin; --ground: #0d1624; --margin: #09101b; --text: #ebe5d5; --soft: rgba(235, 229, 213, 0.62); --u: 1vmin; }
+  body { background: var(--margin); color: var(--text); }
+  canvas { position: absolute; left: 0; top: 0; width: 100vw; height: 100vh; }
+  .neat { position: absolute; inset: var(--m); pointer-events: none;
+    box-shadow: 0 0 0 max(1px, calc(var(--u) * 0.12)) var(--text), 0 0 0 calc(var(--u) * 0.42) var(--margin), 0 0 0 calc(var(--u) * 0.42 + max(1px, var(--u) * 0.06)) var(--soft); }
+  .ticks { position: absolute; inset: 0; pointer-events: none; font: 500 max(9px, calc(var(--u) * 0.92)) / 1 ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.08em; color: var(--soft); }
+  .ticks span { position: absolute; white-space: nowrap; }
+  .ticks .h { transform: translate(-50%, -50%); }
+  .ticks .v { transform: translate(-50%, -50%) rotate(-90deg); }
+  .ticks .corner { color: var(--text); letter-spacing: 0.16em; text-transform: uppercase; }
+  .sw-grain { opacity: 0.05; }
+  .paper .sw-grain { opacity: 0.12; mix-blend-mode: multiply; }
+
+  /* ---------- the summit and spot heights ---------- */
+  .summit { position: absolute; left: 0; top: 0; pointer-events: none; text-align: center; color: var(--text);
+    transform: translate(calc(var(--sx) - 50%), calc(var(--sy) - 100%)); }
+  .summit .tri { display: block; font-size: calc(var(--u) * 1.5); line-height: 1; margin-top: calc(var(--u) * 0.6);
+    text-shadow: 0 0 calc(var(--u) * 0.6) var(--ground); }
+  .summit .name { display: block; font: 700 calc(var(--u) * 1.18) / 1.2 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.16em; text-transform: uppercase;
+    white-space: nowrap; max-width: 46vw; overflow: hidden; text-overflow: ellipsis;
+    text-shadow: 0 0 calc(var(--u) * 0.35) var(--ground), 0 0 calc(var(--u) * 0.8) var(--ground), 0 0 calc(var(--u) * 1.4) var(--ground); }
+  .summit .el { display: block; margin-top: calc(var(--u) * 0.35); font: italic 500 calc(var(--u) * 1.35) / 1.1 var(--param-captionFont); letter-spacing: 0.02em; color: var(--text);
+    text-shadow: 0 0 calc(var(--u) * 0.4) var(--ground), 0 0 calc(var(--u) * 0.9) var(--ground); }
+  .spots { position: absolute; inset: 0; pointer-events: none; }
+  .spot { position: absolute; font: italic 500 max(9px, calc(var(--u) * 0.98)) / 1 var(--param-captionFont); color: var(--soft); white-space: nowrap;
+    transform: translate(-0.25em, -50%); text-shadow: 0 0 calc(var(--u) * 0.35) var(--ground), 0 0 calc(var(--u) * 0.7) var(--ground); }
+  .spot::before { content: ""; display: inline-block; width: calc(var(--u) * 0.4); height: calc(var(--u) * 0.4); border-radius: 50%; background: var(--text);
+    margin-right: calc(var(--u) * 0.45); vertical-align: 0.12em; }
+
+  /* ---------- the legend cartouche ---------- */
+  .cart { position: absolute; left: calc(var(--m) * 2); bottom: calc(var(--m) * 2); width: var(--cw, 34vw); box-sizing: border-box;
+    padding: calc(var(--u) * 2.4) calc(var(--u) * 2.6) calc(var(--u) * 2.1); background: var(--ground); color: var(--text);
+    box-shadow: 0 0 0 max(1px, calc(var(--u) * 0.1)) var(--soft), 0 0 0 calc(var(--u) * 0.45) var(--ground), 0 0 0 calc(var(--u) * 0.45 + max(1px, var(--u) * 0.1)) var(--text); }
+  .k { font: 600 max(9px, calc(var(--u) * 1)) / 1.3 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.22em; text-transform: uppercase; color: var(--soft);
+    display: flex; justify-content: space-between; gap: 2em; }
+  .k span:last-child { white-space: nowrap; }
+  .title { margin-top: calc(var(--u) * 1.4); }
+  .title fit-text { width: 100%; font-family: var(--param-titleFont); font-weight: 760; font-stretch: 72%; text-transform: uppercase; line-height: 0.92;
+    letter-spacing: 0.01em; }
+  .sub { margin-top: calc(var(--u) * 1.1); font: 500 max(10px, calc(var(--u) * 1.2)) / 1.35 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rule { height: max(1px, calc(var(--u) * 0.1)); background: var(--soft); opacity: 0.6; margin: calc(var(--u) * 1.7) 0; }
+  .caption { position: relative; }
+  .caption fit-text { width: 100%; font-family: var(--param-captionFont); font-style: italic; font-weight: 400; line-height: 1.22; letter-spacing: 0.005em;
+    text-wrap: balance; }
+  .caption .note { font: 600 max(9px, calc(var(--u) * 0.95)) / 1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--soft); margin-bottom: calc(var(--u) * 1); }
+  .foot { display: grid; grid-template-columns: auto 1fr; align-items: end; gap: calc(var(--u) * 1.2) calc(var(--u) * 2.4);
+    font: 500 max(9px, calc(var(--u) * 0.95)) / 1.2 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--soft); }
+  .scale { width: calc(var(--u) * 16); }
+  .scale .bar { display: flex; height: calc(var(--u) * 0.55); box-shadow: 0 0 0 max(1px, calc(var(--u) * 0.08)) var(--text); }
+  .scale .bar i { flex: 1; } .scale .bar i:nth-child(odd) { background: var(--text); }
+  .scale .nums { display: flex; justify-content: space-between; margin-top: calc(var(--u) * 0.6); }
+  .keys { display: grid; gap: calc(var(--u) * 0.55); justify-self: end; text-align: left; }
+  .keys div { display: flex; align-items: center; gap: calc(var(--u) * 0.8); white-space: nowrap; }
+  .keys b { display: inline-block; width: calc(var(--u) * 2.4); border-top: max(1px, calc(var(--u) * 0.1)) solid var(--kc, var(--text)); }
+  .keys b.thick { border-top-width: max(2px, calc(var(--u) * 0.26)); }
+  .keys .tri { width: calc(var(--u) * 2.4); text-align: center; color: var(--text); }
+  .time { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: calc(var(--u) * 1.2); }
+  .time .track { flex: 1; height: max(1px, calc(var(--u) * 0.1)); background: var(--soft); opacity: 0.5; position: relative; }
+  /* the dot walks the song on the compositor (data-follow="song"), no per-frame script */
+  .time .track .run { position: absolute; inset: 0; animation: walk 1s linear both paused; }
+  .time .track i { position: absolute; top: 50%; left: 0; width: calc(var(--u) * 0.7); height: calc(var(--u) * 0.7);
+    border-radius: 50%; background: var(--text); transform: translate(-50%, -50%); }
+  @keyframes walk { from { transform: translateX(0); } to { transform: translateX(100%); } }
+
+  /* north arrow, top right inside the neatline */
+  .north { position: absolute; right: calc(var(--m) * 2); top: calc(var(--m) * 1.9); width: calc(var(--u) * 3); text-align: center; color: var(--text);
+    font: 700 calc(var(--u) * 1.2) / 1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.1em; }
+  .north svg { display: block; width: 100%; height: auto; margin-bottom: calc(var(--u) * 0.6); }
+
+  .sw-live .caption fit-text { transition: opacity 0.6s ease; }
+</style>
+</head>
+<body>
+  <canvas id="relief"></canvas>
+  <canvas id="lines"></canvas>
+  <div class="spots" id="spots"></div>
+  <div class="summit" id="summit"><span class="name" id="peakName"></span><span class="el" id="peakEl"></span><span class="tri">▲</span></div>
+  <div class="neat"></div>
+  <div class="ticks" id="ticks"></div>
+  <div class="north"><svg viewBox="0 0 30 44"><path d="M15 2 L25 40 L15 32 Z" fill="currentColor"/><path d="M15 2 L5 40 L15 32 Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>N</div>
+  <div class="cart" id="cart">
+    <div class="k"><span id="sheetNo"></span><span>1:25 000</span></div>
+    <div class="title"><fit-text id="title" max-lines="2" min="2.6vmin" max="7vmin" data-bind="track.title"></fit-text></div>
+    <div class="sub" data-template="{{track.artist}} · {{track.album}}"></div>
+    <div class="rule"></div>
+    <div class="caption">
+      <div class="note" id="note"></div>
+      <fit-text id="caption" max-lines="3" min="1.7vmin" max="3.2vmin" data-animate></fit-text>
+    </div>
+    <div class="rule"></div>
+    <div class="foot">
+      <div class="scale"><div class="bar"><i></i><i></i><i></i><i></i></div><div class="nums"><span>0</span><span>1</span><span id="scaleEnd">2 km</span></div></div>
+      <div class="keys">
+        <div><b class="thick" id="keyIndex"></b><span id="keyIndexT">Index contour</span></div>
+        <div><b id="keyLine"></b><span id="keyLineT">Contour</span></div>
+      </div>
+      <div class="time"><span data-bind="track.elapsed"></span><span class="track"><span class="run" data-follow="song"><i></i></span></span><span data-bind="track.length"></span></div>
+    </div>
+  </div>
+  <div class="sw-grain"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const rootStyle = document.documentElement.style;
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
+
+    // ---------- colour helpers ----------
+    const hexRgb = (h) => { h = String(h || "#888").replace("#", ""); if (h.length === 3) h = h.replace(/./g, "$&$&"); const n = parseInt(h, 16) || 0; return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+    const css = (c, a = 1) => a >= 1 ? `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})` : `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
+    const lumOf = (c) => (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
+    const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+    function toHsl([r, g, b]) {
+      r /= 255; g /= 255; b /= 255;
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+      if (!d) return [0, 0, l];
+      const s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      const h = mx === r ? ((g - b) / d + (g < b ? 6 : 0)) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      return [h / 6, s, l];
+    }
+    function fromHsl([h, s, l]) {
+      if (!s) return [l * 255, l * 255, l * 255];
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+      const f = (t) => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 0.5 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+      return [f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255];
+    }
+
+    // The three sheets: ground inside the neatline, the margin outside it, text, and the lightness band the lines live in.
+    function sheetColours(ctx) {
+      const s = ctx.params.sheet || "night";
+      if (s === "paper") return { name: "paper", ground: [239, 233, 218], margin: [230, 223, 205], text: [43, 37, 32], L: [0.2, 0.46], light: false };
+      if (s === "cover") {
+        const d = toHsl(hexRgb(ctx.colors.dark || "#141414"));
+        const ground = fromHsl([d[0], Math.min(d[1], 0.45), clamp(d[2], 0.08, 0.13)]);
+        return { name: "cover", ground, margin: ground.map((v) => v * 0.78), text: hexRgb(ctx.colors.light || "#eeeeee").map((v) => Math.max(v, 215)), L: [0.55, 0.86], light: true };
+      }
+      return { name: "night", ground: [13, 22, 36], margin: [9, 16, 27], text: [235, 229, 213], L: [0.52, 0.86], light: true };
+    }
+
+    const CLASSIC = {
+      light: ["#3c5a8a", "#5f6fae", "#8a63b8", "#b45aa6", "#de6a7e", "#f08a5d", "#f5b65f", "#f6dca0"],
+      paper: ["#4f7a52", "#6f8a46", "#968a3c", "#a8743a", "#965533", "#7a3f2c", "#5a2f26"],
+    };
+    // The ramp from the lowest contour to the highest.
+    function ramp(ctx, sheet) {
+      const mode = ctx.params.lines || "cover";
+      if (mode === "ink") { const c = hexRgb(ctx.params.ink); return [c, c]; }
+      if (mode === "classic") return CLASSIC[sheet.light ? "light" : "paper"].map(hexRgb);
+      const C = ctx.colors, raw = [...(C.palette || []), C.vibrant, C.light, C.muted, C.dominant].filter(Boolean).map(hexRgb);
+      const [lo, hi] = sheet.L;
+      let cols = raw.map((c) => { const h = toHsl(c); return [h[0], Math.min(1, h[1] * 1.15 + 0.05), clamp(h[2], lo, hi)]; })
+        .map(fromHsl).sort((a, b) => lumOf(a) - lumOf(b));
+      const out = [];
+      for (const c of cols) if (!out.some((o) => Math.abs(o[0] - c[0]) + Math.abs(o[1] - c[1]) + Math.abs(o[2] - c[2]) < 40)) out.push(c);
+      if (sheet.light) { if (out.length < 2) out.push(sheet.text); }
+      else { out.reverse(); if (out.length < 2) out.push(sheet.text); }
+      // stretch the ramp's lightness so low ground is quiet and the tops shine (on paper: the reverse, tops darkest)
+      return out.map((c, k) => { const h = toHsl(c), t = out.length > 1 ? k / (out.length - 1) : 1; return fromHsl([h[0], h[1], sheet.light ? lo + (hi - lo) * (0.15 + 0.85 * t) : hi - (hi - lo) * (0.1 + 0.9 * t)]); });
+    }
+    const rampAt = (R, t) => { t = clamp(t, 0, 1) * (R.length - 1); const k = Math.min(R.length - 2, Math.floor(t)); return R.length < 2 ? R[0] : mix(R[k], R[k + 1], t - k); };
+
+    // ---------- the cover as height ----------
+    const CN = 192;
+    let coverLum = null, coverFor = null;
+    async function loadCover(url) {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      const c = document.createElement("canvas"); c.width = c.height = CN;
+      const g = c.getContext("2d", { willReadFrequently: true });
+      const s = Math.min(img.naturalWidth, img.naturalHeight);
+      g.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, CN, CN);
+      const d = g.getImageData(0, 0, CN, CN).data, L = new Float32Array(CN * CN);
+      for (let i = 0; i < CN * CN; i++) L[i] = (0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2]) / 255;
+      boxBlur(L, CN, CN, 3, 3);  // smooth terrain, not pixel noise
+      return L;
+    }
+    function boxBlur(a, w, h, r, passes) {
+      const tmp = new Float32Array(a.length);
+      for (let p = 0; p < passes; p++) {
+        for (let y = 0; y < h; y++) {  // horizontal, into tmp
+          let s = 0; const row = y * w;
+          for (let x = -r; x <= r; x++) s += a[row + clamp(x, 0, w - 1)];
+          for (let x = 0; x < w; x++) { tmp[row + x] = s / (2 * r + 1); s += a[row + clamp(x + r + 1, 0, w - 1)] - a[row + clamp(x - r, 0, w - 1)]; }
+        }
+        for (let x = 0; x < w; x++) {  // vertical, back into a
+          let s = 0;
+          for (let y = -r; y <= r; y++) s += tmp[clamp(y, 0, h - 1) * w + x];
+          for (let y = 0; y < h; y++) { a[y * w + x] = s / (2 * r + 1); s += tmp[clamp(y + r + 1, 0, h - 1) * w + x] - tmp[clamp(y - r, 0, h - 1) * w + x]; }
+        }
+      }
+    }
+    // smooth value noise, so flat covers still have some land to them
+    function noise2(seed) {
+      const N = 64, v = new Float32Array(N * N);
+      let s = seed || 1;
+      for (let i = 0; i < v.length; i++) { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; v[i] = s / 4294967296; }
+      const sm = (t) => t * t * (3 - 2 * t);
+      return (x, y) => {
+        const xi = Math.floor(x), yi = Math.floor(y), fx = sm(x - xi), fy = sm(y - yi);
+        const at = (i, j) => v[((j & 63) * N) + (i & 63)];
+        const a = at(xi, yi), b = at(xi + 1, yi), c = at(xi, yi + 1), d = at(xi + 1, yi + 1);
+        return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+      };
+    }
+
+    // The terrain grid over the whole screen: the cover fitted to cover the screen, plus a little noise, levelled to 0–1.
+    let geo = null, geoFor = null;
+    function buildTerrain(W, H, key) {
+      const vmin = Math.min(W, H), cell = Math.max(5, Math.max(W, H) / 250);
+      const gw = Math.ceil(W / cell) + 1, gh = Math.ceil(H / cell) + 1;
+      const base = new Float32Array(gw * gh), S = Math.max(W, H), ox = (W - S) / 2, oy = (H - S) / 2;
+      const nz = noise2(hashStr(key)), f = 3.2 / vmin;
+      for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+        const x = i * cell, y = j * cell;
+        const u = clamp(((x - ox) / S) * (CN - 1), 0, CN - 1.001), v = clamp(((y - oy) / S) * (CN - 1), 0, CN - 1.001);
+        const ui = u | 0, vi = v | 0, fu = u - ui, fv = v - vi, k = vi * CN + ui;
+        const c = coverLum[k] * (1 - fu) * (1 - fv) + coverLum[k + 1] * fu * (1 - fv) + coverLum[k + CN] * (1 - fu) * fv + coverLum[k + CN + 1] * fu * fv;
+        const n = nz(x * f, y * f) * 0.6 + nz(x * f * 2.3 + 17, y * f * 2.3 + 5) * 0.3 + nz(x * f * 5.1 + 3, y * f * 5.1 + 41) * 0.1;
+        base[j * gw + i] = c * 0.8 + n * 0.2;
+      }
+      // auto-levels, so pale or murky covers still climb from valley to summit
+      const sorted = Float32Array.from(base).sort();
+      const lo = sorted[Math.floor(sorted.length * 0.01)], hi = sorted[Math.floor(sorted.length * 0.997)], span = Math.max(0.05, hi - lo);
+      for (let i = 0; i < base.length; i++) base[i] = clamp((base[i] - lo) / span, 0, 1) * 0.94 + 0.03;
+      return { W, H, cell, gw, gh, base, h: new Float32Array(base.length),
+        nb1: new Int32Array(gw * gh * 2), nb2: new Int32Array(gw * gh * 2), px: new Float32Array(gw * gh * 2), py: new Float32Array(gw * gh * 2),
+        seen: new Uint8Array(gw * gh * 2), touched: new Int32Array(gw * gh * 2) };
+    }
+
+    // ---------- the sheet's furniture: where things go ----------
+    let layout = null;
+    function sizes() {
+      const W = innerWidth, H = innerHeight, vmin = Math.min(W, H) / 100, portrait = W / H < 0.9;
+      const m = Math.max(18, vmin * 2.6);
+      rootStyle.setProperty("--m", m + "px");
+      rootStyle.setProperty("--u", vmin + "px");
+      rootStyle.setProperty("--cw", (portrait ? W - m * 4 : clamp(W * 0.34, 340, vmin * 64)) + "px");
+      return { W, H, vmin, portrait, m };
+    }
+    function place(ctx) {
+      const { W, H, vmin, portrait, m } = sizes();
+      const cart = $("cart").getBoundingClientRect();
+      layout = { W, H, m, vmin, portrait, inner: { x: m, y: m, w: W - 2 * m, h: H - 2 * m },
+        cart: { x: cart.left - vmin * 2, y: cart.top - vmin * 2, w: cart.width + vmin * 4, h: cart.height + vmin * 4 } };
+      return layout;
+    }
+
+    const inRect = (x, y, r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+
+    // Summit: the highest ground away from the edges and the legend. Spot heights: a few lesser local tops.
+    function survey(g, L) {
+      const { gw, gh, cell, base } = g, padX = L.W * 0.08, padY = L.H * 0.12;
+      const north = { x: L.W - L.m * 2 - L.vmin * 6, y: 0, w: L.vmin * 6 + L.m * 2, h: L.m * 2 + L.vmin * 8 };
+      const ok = (x, y) => x > L.m + padX && x < L.W - L.m - padX && y > L.m + padY + L.vmin * 4 && y < L.H - L.m - padY * 0.6 && !inRect(x, y, L.cart) && !inRect(x, y, north);
+      let best = -1, peak = null;
+      const tops = [];
+      if (!g.smooth) { g.smooth = Float32Array.from(base); boxBlur(g.smooth, gw, gh, Math.max(2, Math.round(Math.min(L.W, L.H) * 0.02 / cell)), 2); }
+      const sm = g.smooth;
+      const R = Math.max(3, Math.round(Math.min(L.W, L.H) * 0.06 / cell));
+      for (let j = 1; j < gh - 1; j++) for (let i = 1; i < gw - 1; i++) {
+        const x = i * cell, y = j * cell, v = sm[j * gw + i];
+        if (!ok(x, y)) continue;
+        if (v > best) { best = v; peak = { x, y, v: base[j * gw + i] }; }
+      }
+      for (let j = R; j < gh - R; j += 2) for (let i = R; i < gw - R; i += 2) {
+        const v = base[j * gw + i], x = i * cell, y = j * cell;
+        if (v < 0.3 || !ok(x, y)) continue;
+        let top = true;
+        for (let b = -R; b <= R && top; b += 1) for (let a = -R; a <= R; a += 1) if (base[(j + b) * gw + i + a] > v) { top = false; break; }
+        if (top) tops.push({ x, y, v });
+      }
+      tops.sort((a, b) => b.v - a.v);
+      const spots = [];
+      const far = (p, d) => Math.hypot(p.x - peak.x, p.y - peak.y) > d && spots.every((s) => Math.hypot(p.x - s.x, p.y - s.y) > d);
+      for (const t of tops) if (peak && far(t, Math.min(L.W, L.H) * 0.16) && spots.length < 5) spots.push(t);
+      return { peak, spots };
+    }
+
+    // ---------- relief: hill shading and a faint tint by height, once per terrain ----------
+    function drawRelief(ctx, g, L, sheet, R, show) {
+      const cv = $("relief"), dpr = Math.max(1, devicePixelRatio || 1);
+      cv.width = Math.round(L.W * dpr); cv.height = Math.round(L.H * dpr);
+      const c = cv.getContext("2d");
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.fillStyle = css(sheet.margin); c.fillRect(0, 0, L.W, L.H);
+      const { gw, gh, base, cell } = g, img = new ImageData(gw, gh), d = img.data;
+      const relief = ctx.params.relief !== false;
+      const zs = 9 / cell * Math.min(L.W, L.H) / 100;  // vertical exaggeration for the shading
+      for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+        const k = j * gw + i, h = base[k];
+        const dx = (base[j * gw + Math.min(gw - 1, i + 1)] - base[j * gw + Math.max(0, i - 1)]) * zs;
+        const dy = (base[Math.min(gh - 1, j + 1) * gw + i] - base[Math.max(0, j - 1) * gw + i]) * zs;
+        // light from the north-west, as on every survey sheet
+        const shade = relief ? clamp((-dx * 0.7 - dy * 0.7) / Math.sqrt(1 + dx * dx + dy * dy), -1, 1) : 0;
+        let col = mix(sheet.ground, rampAt(R, h), sheet.light ? 0.05 + h * 0.07 : 0.04 + h * 0.06);
+        col = shade > 0 ? mix(col, sheet.light ? [255, 248, 230] : [255, 252, 244], shade * (sheet.light ? 0.1 : 0.32))
+                        : mix(col, sheet.light ? [0, 0, 0] : [92, 74, 56], -shade * (sheet.light ? 0.32 : 0.2));
+        d[k * 4] = col[0]; d[k * 4 + 1] = col[1]; d[k * 4 + 2] = col[2]; d[k * 4 + 3] = 255;
+      }
+      const t = document.createElement("canvas"); t.width = gw; t.height = gh;
+      t.getContext("2d").putImageData(img, 0, 0);
+      c.save();
+      c.beginPath(); c.rect(L.inner.x, L.inner.y, L.inner.w, L.inner.h); c.clip();
+      c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high";
+      c.drawImage(t, 0, 0, gw * cell, gh * cell);
+      // the survey grid
+      if (show.grid) {
+        c.strokeStyle = css(sheet.text, sheet.light ? 0.09 : 0.14); c.lineWidth = Math.max(1, L.vmin * 0.08);
+        c.beginPath();
+        for (const x of show.gx) { c.moveTo(x, L.inner.y); c.lineTo(x, L.inner.y + L.inner.h); }
+        for (const y of show.gy) { c.moveTo(L.inner.x, y); c.lineTo(L.inner.x + L.inner.w, y); }
+        c.stroke();
+      }
+      c.restore();
+    }
+
+    // ---------- contours: marching squares, joined into lines and drawn as smooth curves ----------
+    function terrainAt(g, t, amp) {
+      const { gw, gh, cell, base, h } = g, k = 1 / (Math.min(g.W, g.H) * 0.22);
+      if (!amp) { h.set(base); return; }
+      for (let j = 0; j < gh; j++) {
+        const y = j * cell * k;
+        for (let i = 0; i < gw; i++) {
+          const x = i * cell * k;
+          h[j * gw + i] = base[j * gw + i] + amp * (Math.sin(x * 1.1 + t) * Math.cos(y * 1.3 - t * 0.7) + 0.6 * Math.sin((x * 0.6 + y) * 1.9 - t * 1.3 + 1));
+        }
+      }
+    }
+
+    // Every contour at level `lv` as chains of points. Edge ids: 2*(j*gw+i) is the edge from node (i,j) to (i+1,j),
+    // +1 the edge from (i,j) to (i,j+1). Each crossing edge links to at most two others.
+    function contour(g, lv) {
+      const { gw, gh, cell, h, nb1, nb2, px, py, seen, touched } = g;
+      let nt = 0;
+      const crossing = (e) => {
+        if (nb1[e] === -2) { nb1[e] = -1; nb2[e] = -1; touched[nt++] = e; seen[e] = 0;
+          const n = e >> 1, i = n % gw, j = (n / gw) | 0, a = h[n], b = (e & 1) ? h[n + gw] : h[n + 1], f = (lv - a) / ((b - a) || 1e-6);
+          if (e & 1) { px[e] = i * cell; py[e] = (j + f) * cell; } else { px[e] = (i + f) * cell; py[e] = j * cell; } }
+      };
+      const link = (a, b) => { crossing(a); crossing(b); if (nb1[a] < 0) nb1[a] = b; else nb2[a] = b; if (nb1[b] < 0) nb1[b] = a; else nb2[b] = a; };
+      for (let j = 0; j < gh - 1; j++) for (let i = 0; i < gw - 1; i++) {
+        const n = j * gw + i, A = h[n], B = h[n + 1], C = h[n + gw + 1], D = h[n + gw];
+        const c = (A > lv) | ((B > lv) << 1) | ((C > lv) << 2) | ((D > lv) << 3);
+        if (c === 0 || c === 15) continue;
+        const T = 2 * n, Lf = 2 * n + 1, Rt = 2 * (n + 1) + 1, Bt = 2 * (n + gw);
+        switch (c) {
+          case 1: case 14: link(Lf, T); break;
+          case 2: case 13: link(T, Rt); break;
+          case 3: case 12: link(Lf, Rt); break;
+          case 4: case 11: link(Rt, Bt); break;
+          case 6: case 9: link(T, Bt); break;
+          case 7: case 8: link(Lf, Bt); break;
+          case 5: case 10: {
+            const mid = (A + B + C + D) / 4 > lv;
+            if ((c === 5) === mid) { link(Lf, Bt); link(T, Rt); } else { link(Lf, T); link(Rt, Bt); }
+            break;
+          }
+        }
+      }
+      // walk: open chains (from an end) first, then closed loops
+      const chains = [];
+      const walk = (start) => {
+        const pts = [start]; seen[start] = 1;
+        let prev = -1, cur = start;
+        for (;;) {
+          const nx = nb1[cur] !== prev && nb1[cur] >= 0 && !seen[nb1[cur]] ? nb1[cur] : nb2[cur] >= 0 && !seen[nb2[cur]] ? nb2[cur] : -1;
+          if (nx < 0) break;
+          seen[nx] = 1; pts.push(nx); prev = cur; cur = nx;
+        }
+        const closed = pts.length > 2 && (nb1[cur] === start || nb2[cur] === start);
+        chains.push({ pts, closed });
+      };
+      for (let k = 0; k < nt; k++) { const e = touched[k]; if (!seen[e] && nb2[e] < 0) walk(e); }
+      for (let k = 0; k < nt; k++) { const e = touched[k]; if (!seen[e]) walk(e); }
+      for (let k = 0; k < nt; k++) nb1[touched[k]] = -2;  // reset for the next level
+      return chains;
+    }
+
+    function tracePath(c, g, ch) {
+      const { px, py } = g, p = ch.pts, n = p.length;
+      if (n < 2) return;
+      if (ch.closed) {
+        c.moveTo((px[p[0]] + px[p[1]]) / 2, (py[p[0]] + py[p[1]]) / 2);
+        for (let k = 1; k <= n; k++) { const a = p[k % n], b = p[(k + 1) % n]; c.quadraticCurveTo(px[a], py[a], (px[a] + px[b]) / 2, (py[a] + py[b]) / 2); }
+      } else {
+        c.moveTo(px[p[0]], py[p[0]]);
+        for (let k = 1; k < n - 1; k++) { const a = p[k], b = p[k + 1]; c.quadraticCurveTo(px[a], py[a], (px[a] + px[b]) / 2, (py[a] + py[b]) / 2); }
+        c.lineTo(px[p[n - 1]], py[p[n - 1]]);
+      }
+    }
+
+    let drawState = null;  // everything drawLines needs between redraws
+    function drawLines(t) {
+      const S = drawState;
+      if (!S) return 0;
+      const t0 = performance.now();
+      const { g, L, sheet, R, levels, unit, avoid } = S;
+      terrainAt(g, t, S.drift ? 0.016 : 0);
+      const cv = $("lines"), dpr = Math.max(1, devicePixelRatio || 1);
+      if (cv.width !== Math.round(L.W * dpr) || cv.height !== Math.round(L.H * dpr)) { cv.width = Math.round(L.W * dpr); cv.height = Math.round(L.H * dpr); }
+      const c = cv.getContext("2d");
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.clearRect(0, 0, L.W, L.H);
+      c.save();
+      c.beginPath(); c.rect(L.inner.x, L.inner.y, L.inner.w, L.inner.h); c.clip();
+      c.lineJoin = "round"; c.lineCap = "round";
+      const thin = Math.max(0.8, L.vmin * 0.1), thick = Math.max(1.8, L.vmin * 0.24);
+      const labels = [];
+      for (let k = 1; k <= levels; k++) {
+        const lv = k / (levels + 1), index = k % 5 === 0, col = rampAt(R, lv);
+        const chains = contour(g, lv);
+        c.beginPath();
+        let longest = null;
+        for (const ch of chains) { tracePath(c, g, ch); if (index && (!longest || ch.pts.length > longest.pts.length)) longest = ch; }
+        c.strokeStyle = css(col, index ? 1 : (sheet.light ? 0.5 + lv * 0.35 : 0.55 + lv * 0.3));
+        c.lineWidth = index ? thick : thin;
+        c.stroke();
+        if (index && longest && longest.pts.length > 40) labels.push({ ch: longest, text: String(Math.round(k * unit.step)).replace(/\B(?=(\d{3})+(?!\d))/g, ","), col });
+      }
+      // heights written along the index contours, upright, with a halo that breaks the line, as a surveyor would
+      c.font = `italic 500 ${Math.max(9, L.vmin * 0.95)}px ${S.captionFont}`;
+      c.textAlign = "center"; c.textBaseline = "middle";
+      for (const lb of labels) {
+        const p = lb.ch.pts, n = p.length;
+        for (const at of [0.5, 0.3, 0.7]) {
+          const m = Math.floor(n * at), a = p[Math.max(0, m - 3)], b = p[Math.min(n - 1, m + 3)], q = p[m];
+          const x = g.px[q], y = g.py[q];
+          if (avoid.some((r) => inRect(x, y, r)) || x < L.inner.x + 30 || x > L.inner.x + L.inner.w - 30 || y < L.inner.y + 20 || y > L.inner.y + L.inner.h - 20) continue;
+          let ang = Math.atan2(g.py[b] - g.py[a], g.px[b] - g.px[a]);
+          if (ang > Math.PI / 2) ang -= Math.PI; else if (ang < -Math.PI / 2) ang += Math.PI;
+          c.save(); c.translate(x, y); c.rotate(ang);
+          const w = c.measureText(lb.text).width;
+          c.globalCompositeOperation = "destination-out";
+          c.fillRect(-w / 2 - L.vmin * 0.5, -L.vmin * 0.7, w + L.vmin, L.vmin * 1.4);
+          c.globalCompositeOperation = "source-over";
+          c.fillStyle = css(lb.col);
+          c.fillText(lb.text, 0, 0);
+          c.restore();
+          break;
+        }
+      }
+      // the summit's name and the spot heights break the lines under them
+      c.globalCompositeOperation = "destination-out";
+      for (const r of S.knock || []) c.fillRect(r.x, r.y, r.w, r.h);
+      c.globalCompositeOperation = "source-over";
+      c.restore();
+      return performance.now() - t0;
+    }
+
+    // ---------- names, numbers and the margin ----------
+    const UNITS = { m: { step: 100, label: "m", scale: "2 km" }, ft: { step: 250, label: "ft", scale: "1 mi" } };
+    const peakName = (title) => {
+      let t = String(title || "").replace(/\s*[\(\[].*?[\)\]]\s*/g, " ").replace(/\s+-\s+.*$/, "").replace(/\s+/g, " ").trim() || "Untitled";
+      if (t.length > 28) { const words = t.split(" "); t = ""; for (const w of words) { if ((t + " " + w).trim().length > 26) break; t = (t + " " + w).trim(); } t = (t || words[0].slice(0, 26)) + "…"; }
+      return "Mt. " + t;
+    };
+    const fmtNum = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");  // heights read as 2,140
+    function dms(v, pos, neg) {
+      const a = Math.abs(v), d = Math.floor(a), mi = Math.floor((a - d) * 60);
+      return `${d}°${String(mi).padStart(2, "0")}′${v >= 0 ? pos : neg}`;
+    }
+
+    function furniture(ctx, g, L, key) {
+      const h = hashStr(key);
+      const lat0 = 20 + (h % 4000) / 100, lon0 = -10 + ((h >>> 12) % 3000) / 100, step = 1 / 60 * (2 + (h % 3));
+      const sp = Math.min(L.inner.w, L.inner.h) / (L.portrait ? 4 : 4.2);
+      const gx = [], gy = [];
+      for (let x = L.inner.x + sp * 0.6; x < L.inner.x + L.inner.w - sp * 0.3; x += sp) gx.push(x);
+      for (let y = L.inner.y + sp * 0.6; y < L.inner.y + L.inner.h - sp * 0.3; y += sp) gy.push(y);
+      const half = L.m / 2;
+      let html = gx.map((x, k) => `<span class="h" style="left:${x}px;top:${half}px">${dms(lon0 + k * step, "E", "W")}</span>` +
+        `<span class="h" style="left:${x}px;top:${L.H - half}px">${dms(lon0 + k * step, "E", "W")}</span>`).join("");
+      html += gy.map((y, k) => `<span class="v" style="left:${half}px;top:${y}px">${dms(lat0 - k * step, "N", "S")}</span>` +
+        `<span class="v" style="left:${L.W - half}px;top:${y}px">${dms(lat0 - k * step, "N", "S")}</span>`).join("");
+      $("ticks").innerHTML = html;
+      return { gx, gy, sheet: 1 + (h % 48) };
+    }
+
+    // ---------- the caption ----------
+    function caption(ctx, summary) {
+      const L = ctx.lyrics;
+      const first = (L.lines.find((l) => l.text.trim()) || {}).text || "";
+      let note, text;
+      if (ctx.focus || !L.hasLyrics) { note = !L.hasLyrics && !ctx.focus ? "From the album" : "Survey notes"; text = !L.hasLyrics && !ctx.focus && ctx.track.album ? ctx.track.album : summary; }
+      else if (L.index < 0) { note = "Before the first line"; text = first; }
+      else if (L.isInstrumental) { note = "Instrumental"; text = "Open ground, no words for a while."; }
+      else { note = "Line " + (L.index + 1) + " of " + L.lines.length; text = L.current; }
+      $("note").textContent = note;
+      if ($("caption").textContent === text) return false;
+      $("caption").textContent = text;
+      return true;
+    }
+    // the runtime's fit, again, for when the caption changes after layout (the summary needs the surveyed summit)
+    function refit(el) {
+      const u = Math.min(innerWidth, innerHeight) / 100, lines = +el.getAttribute("max-lines") || 1;
+      let lo = parseFloat(el.getAttribute("min")) * u, hi = parseFloat(el.getAttribute("max")) * u, best = lo;
+      for (let n = 0; n < 14; n++) {
+        const mid = (lo + hi) / 2; el.style.fontSize = mid + "px";
+        const lh = parseFloat(getComputedStyle(el).lineHeight) || mid * 1.2;
+        if (el.scrollHeight <= lh * lines + 1 && el.scrollWidth <= el.clientWidth + 1) { best = mid; lo = mid; } else hi = mid;
+      }
+      el.style.fontSize = best + "px";
+    }
+
+    // ---------- wiring ----------
+    let terrainKey = null, info = null, liveT = { pos: 0, at: 0, playing: false }, timer = null;
+
+    function songT() {
+      const p = liveT.pos + (liveT.playing && Wallpaper.live ? (performance.now() - liveT.at) / 1000 : 0);
+      return p * 0.045;
+    }
+
+    function rebuild(ctx) {
+      if (!coverLum) return;
+      const L = place(ctx), sheet = sheetColours(ctx), R = ramp(ctx, sheet);
+      const key = [coverFor, L.W, L.H, devicePixelRatio, ctx.params.sheet, ctx.params.lines, ctx.params.ink, ctx.params.levels, ctx.params.relief, ctx.params.grid, ctx.params.units, (ctx.colors.palette || []).join()].join("|");
+      document.documentElement.classList.toggle("paper", sheet.name === "paper");
+      rootStyle.setProperty("--ground", css(sheet.ground)); rootStyle.setProperty("--margin", css(sheet.margin));
+      rootStyle.setProperty("--text", css(sheet.text)); rootStyle.setProperty("--soft", css(sheet.text, 0.62));
+      // the title only names the summit: a same-cover next song keeps its terrain and shading
+      if (key + "|" + ctx.track.title === terrainKey) return;
+      const reliefChanged = !terrainKey || terrainKey.slice(0, key.length + 1) !== key + "|";
+      terrainKey = key + "|" + ctx.track.title;
+      const gk = [coverFor, L.W, L.H].join("|");
+      if (geoFor !== gk) { geo = buildTerrain(L.W, L.H, coverFor); geoFor = gk; geo.nb1.fill(-2); }
+      const unit = UNITS[ctx.params.units] || UNITS.m, levels = clamp(+ctx.params.levels || 24, 6, 60);
+      const elev = (v) => fmtNum(v * (levels + 1) * unit.step) + "\u00a0" + unit.label;
+      const fur = furniture(ctx, geo, L, coverFor);
+      const show = { grid: ctx.params.grid !== false, gx: fur.gx, gy: fur.gy };
+      if (reliefChanged) drawRelief(ctx, geo, L, sheet, R, show);
+      const sv = survey(geo, L);
+      const sm = $("summit");
+      if (sv.peak) {
+        sm.hidden = false;
+        sm.style.setProperty("--sx", sv.peak.x + "px");
+        sm.style.setProperty("--sy", sv.peak.y + L.vmin * 0.4 + "px");
+        $("peakName").textContent = peakName(ctx.track.title);
+        $("peakEl").textContent = elev(sv.peak.v);
+      } else sm.hidden = true;
+      $("spots").innerHTML = show.grid ? sv.spots.map((s) => `<span class="spot" style="left:${s.x}px;top:${s.y}px">${elev(s.v)}</span>`).join("") : "";
+      $("sheetNo").textContent = "Sheet " + String(fur.sheet).padStart(2, "0");
+      $("scaleEnd").textContent = unit.scale;
+      $("keyLineT").textContent = "Contour · " + unit.step + " " + unit.label;
+      $("keyIndexT").textContent = "Index · " + fmtNum(unit.step * 5) + " " + unit.label;
+      $("keyIndex").style.setProperty("--kc", css(rampAt(R, 0.75)));
+      $("keyLine").style.setProperty("--kc", css(rampAt(R, 0.4)));
+      info = { summary: sv.peak ? `${peakName(ctx.track.title)}, ${elev(sv.peak.v)}, surveyed from the cover.` : "Surveyed from the cover." };
+      // keep labels on index contours clear of the legend, the summit and the north arrow
+      const avoid = [L.cart, { x: L.W - L.m * 2 - L.vmin * 6, y: 0, w: L.vmin * 6 + L.m * 2, h: L.m * 2 + L.vmin * 8 }];
+      if (sv.peak) avoid.push({ x: sv.peak.x - L.vmin * 16, y: sv.peak.y - L.vmin * 6, w: L.vmin * 32, h: L.vmin * 8 });
+      for (const s of sv.spots) avoid.push({ x: s.x - L.vmin * 2, y: s.y - L.vmin * 2, w: L.vmin * 10, h: L.vmin * 4 });
+      const fonts = Wallpaper.fonts || {};
+      drawState = { g: geo, L, sheet, R, levels, unit, avoid, drift: ctx.params.drift !== false, captionFont: fonts[ctx.params.captionFont] || ctx.params.captionFont || "serif" };
+      const pad = L.vmin * 0.35, knock = [];
+      for (const el of [$("peakName"), $("peakEl"), ...$("spots").children]) {
+        if (el.closest("[hidden]")) continue;
+        const r = el.getBoundingClientRect(), range = document.createRange();
+        range.selectNodeContents(el);
+        const t = range.getBoundingClientRect(), x = Math.max(r.left, t.left), w = Math.min(r.width, t.width);
+        knock.push({ x: x - pad, y: t.top - pad * 0.5, w: w + pad * 2 + (el.classList.contains("spot") ? L.vmin * 0.6 : 0), h: t.height + pad });
+      }
+      const tri = $("summit").querySelector(".tri").getBoundingClientRect();
+      if (sv.peak) knock.push({ x: tri.left + tri.width * 0.15, y: tri.top + tri.height * 0.1, w: tri.width * 0.7, h: tri.height * 0.8 });
+      drawState.knock = knock;
+      drawLines(songT());
+    }
+
+    // Live drift: a few redraws a second at most, only while the music plays and the desktop is visible.
+    const FPS = 3;
+    function loop() {
+      clearTimeout(timer); timer = null;
+      if (!Wallpaper.live || Wallpaper.paused || !liveT.playing || !drawState || !drawState.drift) return;
+      drawLines(songT());
+      timer = setTimeout(loop, 1000 / FPS);
+    }
+    function syncClock(ctx) {
+      liveT = { pos: ctx.track.position || 0, at: performance.now(), playing: !!ctx.track.isPlaying };
+      if (Wallpaper.live && !timer) timer = setTimeout(loop, 1000 / FPS);
+    }
+
+    Wallpaper.on("render", (ctx) => {
+      const L = ctx.lyrics;
+      $("title").setAttribute("max", (innerWidth / innerHeight < 0.9 ? 8 : 7) + "vmin");
+      liveT = { pos: ctx.track.position || 0, at: performance.now(), playing: !!ctx.track.isPlaying };
+      sizes();
+      caption(ctx, info ? info.summary : "");
+      const want = ctx.track.coverKey || ctx.track.cover;
+      if (want && want !== coverFor) {
+        Wallpaper.hold(loadCover(ctx.track.cover).then((lum) => { coverLum = lum; coverFor = want; terrainKey = null; }).catch(() => {}));
+      }
+    });
+    Wallpaper.on("layout", (ctx) => {
+      rebuild(ctx);
+      if (caption(ctx, info ? info.summary : "")) refit($("caption"));
+      if (!Wallpaper.live && drawState) drawLines(songT());
+      syncClock(ctx);
+    });
+    Wallpaper.on("tick", syncClock);
+    Wallpaper.on("pause", () => { clearTimeout(timer); timer = null; });
+    Wallpaper.on("resume", () => syncClock(Wallpaper.ctx));
+    let rz = null;
+    addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { terrainKey = null; Wallpaper.refresh(); }, 150); });
+  </script>
+</body>
+</html>

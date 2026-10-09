@@ -269,15 +269,20 @@
     s.width = n; s.height = Math.max(1, Math.round(n * region.h / region.w));
     const im = c.image, iw = im.naturalWidth, ih = im.naturalHeight, cr = region.crop;
     s.getContext("2d").drawImage(im, cr.x0 * iw, cr.y0 * ih, (cr.x1 - cr.x0) * iw, (cr.y1 - cr.y0) * ih, 0, 0, s.width, s.height);
-    let src = s;
+    // a soft wash, not a grid of blocks: streaky marks (dry brush, hatching) let it show through between bristles.
+    // Upscaled in two smoothed steps so the blend is round rather than diamond-shaped.
+    let src = document.createElement("canvas");
+    src.width = Math.min(512, s.width * 6); src.height = Math.max(1, Math.round(src.width * s.height / s.width));
+    const k = src.getContext("2d");
+    k.imageSmoothingEnabled = true; k.imageSmoothingQuality = "high";
+    if ("filter" in k) k.filter = `blur(${(src.width / s.width) * 0.6}px)`;
+    k.drawImage(s, 0, 0, src.width, src.height);
+    k.filter = "none";
     if (m) {
-      src = document.createElement("canvas");
-      src.width = Math.ceil(region.w); src.height = Math.ceil(region.h);
-      const k = src.getContext("2d");
-      k.imageSmoothingEnabled = false; k.drawImage(s, 0, 0, src.width, src.height);
-      k.imageSmoothingEnabled = true; k.globalCompositeOperation = "destination-in"; k.drawImage(memCanvas(m), 0, 0, src.width, src.height);
+      k.globalCompositeOperation = "destination-in";
+      k.drawImage(memCanvas(m), 0, 0, src.width, src.height);
     }
-    g.save(); g.imageSmoothingEnabled = false;
+    g.save(); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high";
     g.drawImage(src, region.x, region.y, region.w, region.h);
     g.restore();
   }

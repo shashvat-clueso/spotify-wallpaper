@@ -9,6 +9,7 @@ final class ScreenRenderer: NSObject, WKNavigationDelegate {
     private let webView: WKWebView
     private var loadedURL: URL?
     private var navigation: CheckedContinuation<Void, Never>?
+    private var closed = false
 
     init(size: CGSize, configuration: WKWebViewConfiguration) {
         self.size = size
@@ -25,14 +26,30 @@ final class ScreenRenderer: NSObject, WKNavigationDelegate {
         window.orderBack(nil)
     }
 
-    func close() { window.close() }
+    /// Frees the web view even mid-render: a load waiting in a closed window never finishes on its own, and the
+    /// awaiting task would keep this renderer (a screen-sized page) alive for good.
+    func close() {
+        closed = true
+        finishNavigation()
+        webView.stopLoading()
+        webView.navigationDelegate = nil
+        window.contentView = nil
+        window.close()
+    }
 
     func render(url: URL, payload: [String: Any]) async -> NSImage? {
+        guard !closed else { return nil }
         if loadedURL != url {
             await withCheckedContinuation { c in
                 navigation = c
                 webView.load(URLRequest(url: url))
+                // a load can stall (a suspended or killed web process); give up rather than wait forever
+                Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(20))
+                    self?.finishNavigation()
+                }
             }
+            guard !closed else { return nil }
             loadedURL = url
         }
         do {
@@ -54,8 +71,31 @@ final class ScreenRenderer: NSObject, WKNavigationDelegate {
         finishNavigation()
     }
 
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        loadedURL = nil  // the next render loads the page again
+        finishNavigation()
+    }
+
     private func finishNavigation() {
         navigation?.resume()
         navigation = nil
+    }
+}
+
+/// Reloads a web view whose web content process was killed (memory pressure, a crash), which otherwise leaves the
+/// window blank for good. Keep a reference to it alongside the web view; `onReload` runs after the reload starts.
+@MainActor
+final class ReloadOnCrash: NSObject, WKNavigationDelegate {
+    var onReload: (() -> Void)?
+
+    init(_ webView: WKWebView) {
+        super.init()
+        webView.navigationDelegate = self
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        NSLog("SpotifyWallpaper: a web page's process ended; reloading it")
+        webView.reload()
+        onReload?()
     }
 }

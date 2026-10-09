@@ -1,0 +1,63 @@
+{
+  "name": "Classic",
+  "description": "An iPod classic on the desk, playing the real song: the cover on its Now Playing screen with the lyric under it, a working progress bar and a click wheel, the title set big beside it.",
+  "author": "Built-in",
+  "category": "objects",
+  "params": [
+    {
+      "key": "shell",
+      "type": "select",
+      "label": "Shell",
+      "default": "silver",
+      "options": [
+        { "value": "silver", "label": "Silver" },
+        { "value": "white", "label": "White" },
+        { "value": "black", "label": "Black" },
+        { "value": "cover", "label": "From the cover" }
+      ]
+    },
+    {
+      "key": "lyricPlace",
+      "type": "select",
+      "label": "Lyric on the screen",
+      "default": "below",
+      "options": [
+        { "value": "below", "label": "Under the cover" },
+        { "value": "album", "label": "In the album line" }
+      ]
+    },
+    {
+      "key": "side",
+      "type": "bool",
+      "label": "Big title beside it",
+      "default": true
+    },
+    {
+      "key": "font",
+      "type": "font",
+      "label": "Title font",
+      "default": "Helvetica Neue"
+    },
+    {
+      "key": "dim",
+      "type": "number",
+      "label": "Darken background",
+      "min": 0,
+      "max": 0.8,
+      "step": 0.05,
+      "default": 0.3
+    },
+    {
+      "key": "reflection",
+      "type": "bool",
+      "label": "Cover reflection",
+      "default": true
+    },
+    {
+      "key": "grain",
+      "type": "bool",
+      "label": "Grain",
+      "default": true
+    }
+  ]
+}

@@ -22,6 +22,12 @@ with sliders or rewrite completely.
   <img src="docs/screenshots/template-albers.jpg" width="49%" alt="Albers template">
   <img src="docs/screenshots/template-breathing-type.jpg" width="49%" alt="Breathing Type template">
   <img src="docs/screenshots/template-receipt.jpg" width="49%" alt="Receipt template">
+  <img src="docs/screenshots/template-one-bit.jpg" width="49%" alt="One Bit template">
+  <img src="docs/screenshots/template-teletext.jpg" width="49%" alt="Teletext template">
+  <img src="docs/screenshots/template-text-mode.jpg" width="49%" alt="Text Mode template">
+  <img src="docs/screenshots/template-contour-map.jpg" width="49%" alt="Contour Map template">
+  <img src="docs/screenshots/template-classic.jpg" width="49%" alt="Classic template">
+  <img src="docs/screenshots/template-stained-glass.jpg" width="49%" alt="Stained Glass template">
 </p>
 
 ## Features
@@ -35,7 +41,7 @@ with sliders or rewrite completely.
 - **The real wallpaper stays in sync.** On every track change the app also sets your actual wallpaper to a still of
   the song, so the lock screen and Mission Control match. When you quit, or nothing is playing, your own wallpaper
   comes back.
-- **Twenty-two built-in templates:** Lyric Card (Spotify lyric cards), Album Poster (minimalist posters with color swatches),
+- **Twenty-eight built-in templates:** Lyric Card (Spotify lyric cards), Album Poster (minimalist posters with color swatches),
   Minimal, Glow (Apple Music style), Vinyl (a spinning record with the cover as its label), Typewriter (lyrics type
   themselves out), Lock Screen (big live clock), Visualizer (bars in the cover's colors), Brushwork (a living oil
   painting made from the cover with p5.js brushes) and Painted Cover / Painted Cover Wide (the cover repainted in
@@ -47,7 +53,11 @@ with sliders or rewrite completely.
   Panel (a little device with the cover behind a speaker grille, the lyric on an OLED and knobs that turn with the
   song), Film Strip (35 mm frames that advance a frame per line, under a yellow subtitle), Albers (the cover's four
   strongest colours as nested squares that trade places each line), Breathing Type (the key word's width swells with
-  the beat) and Receipt (the song printing on a thermal slip, line by line).
+  the beat), Receipt (the song printing on a thermal slip, line by line), One Bit (the cover dithered to two inks
+  beside a System 7 window), Teletext (Page 888 with the cover rebuilt from mosaic blocks), Text Mode (the cover in
+  coloured ASCII, the lyric typed at a shell prompt), Contour Map (the cover's brightness surveyed as terrain, with a
+  summit named after the song), Classic (an iPod classic on its Now Playing screen) and Stained Glass (the cover cut
+  into leaded panes of glass, the lyric on a parchment banner).
 - **Duets and translations:** templates can lay out duets voice by voice and show translated lyrics under each line,
   and lyrics hide while you share your screen.
 - **Light on your Mac:** about 1–5% CPU while animating at 60 fps. Lines change on timers set for their exact

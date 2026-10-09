@@ -68,6 +68,12 @@ final class DesktopLayer: NSObject, WKNavigationDelegate {
         webView.evaluateJavaScript("window.__sw && __sw.beat && __sw.beat(\(json))")
     }
 
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        NSLog("SpotifyWallpaper: the live layer's web process ended; reloading it")
+        loaded = false
+        webView.reload()  // didFinish then resends the state and clock
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         loaded = true
         if let full { webView.evaluateJavaScript("window.__sw && __sw.live(\(full))") }

@@ -2,6 +2,24 @@
 
 All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](https://semver.org).
 
+## 1.6.0 — 2026-10-09
+
+### Added
+- **Six more templates:** **One Bit** (the cover Atkinson-dithered to two inks, the lyric in a System 7 window that
+  redraws the picture top to bottom each line), **Teletext** (Page 888, the cover rebuilt from mosaic blocks in the
+  eight teletext colours), **Text Mode** (the cover as coloured ASCII that brightens on the beat, the lyric typed at a
+  shell prompt), **Contour Map** (the cover's brightness surveyed as slowly drifting terrain, its summit named after
+  the song), **Classic** (an iPod classic showing the song on its Now Playing screen) and **Stained Glass** (the cover
+  cut into leaded panes, one lighting up each line, the lyric on a parchment banner).
+
+### Fixed
+- Windows no longer go blank: if macOS ends a web page's process (memory pressure, a crash), Home, the Builder, What's
+  New, the Quick Switcher and the live wallpaper reload themselves. The off-screen renderers for the wallpaper still no
+  longer pile up after display changes.
+- Dry brush in Painted Cover is a real dry drag now: dozens of fine bristles that skip and run out unevenly, instead of
+  blocky faceted strokes, and the cover underneath is a soft wash instead of a grid of squares that showed between the
+  bristles.
+
 ## 1.5.0 — 2026-10-07
 
 ### Added
