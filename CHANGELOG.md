@@ -2,6 +2,24 @@
 
 All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](https://semver.org).
 
+## 1.6.0 — 2026-10-09
+
+### Added
+- **Six more templates:** **One Bit** (the cover Atkinson-dithered to two inks, the lyric in a System 7 window that
+  redraws the picture top to bottom each line), **Teletext** (Page 888, the cover rebuilt from mosaic blocks in the
+  eight teletext colours), **Text Mode** (the cover as coloured ASCII that brightens on the beat, the lyric typed at a
+  shell prompt), **Contour Map** (the cover's brightness surveyed as slowly drifting terrain, its summit named after
+  the song), **Classic** (an iPod classic showing the song on its Now Playing screen) and **Stained Glass** (the cover
+  cut into leaded panes, one lighting up each line, the lyric on a parchment banner).
+
+### Fixed
+- Windows no longer go blank: if macOS ends a web page's process (memory pressure, a crash), Home, the Builder, What's
+  New, the Quick Switcher and the live wallpaper reload themselves. The off-screen renderers for the wallpaper still no
+  longer pile up after display changes.
+- Dry brush in Painted Cover is a real dry drag now: dozens of fine bristles that skip and run out unevenly, instead of
+  blocky faceted strokes, and the cover underneath is a soft wash instead of a grid of squares that showed between the
+  bristles.
+
 ## 1.5.0 — 2026-10-07
 
 ### Added
@@ -29,12 +47,6 @@ All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](
   frames advancing a frame per line, under a yellow subtitle), **Albers** (the cover's four strongest colours as
   nested squares that trade places each line), **Breathing Type** (the line's key word swelling with the beat in SF
   Pro's variable width) and **Receipt** (the song printing on a thermal slip, with a total and barcode at the end).
-- **Six more templates:** **One Bit** (the cover Atkinson-dithered to two inks, the lyric in a System 7 window that
-  redraws the picture top to bottom each line), **Teletext** (Page 888, the cover rebuilt from mosaic blocks in the
-  eight teletext colours), **Text Mode** (the cover as coloured ASCII that brightens on the beat, the lyric typed at a
-  shell prompt), **Contour Map** (the cover's brightness surveyed as slowly drifting terrain, its summit named after
-  the song), **Classic** (an iPod classic showing the song on its Now Playing screen) and **Stained Glass** (the cover
-  cut into leaded panes, one lighting up each line, the lyric on a parchment banner).
 - **Painted Cover comes alive:** the most striking word of each lyric line is lettered into the painting in brush
   strokes, then painted over; before a new cover goes on, the last painting replays as a ~4-second timelapse; fresh
   paint looks wet and dries to matte; a new "Match the genre" stroke style (rock in heavy impasto and knife,
@@ -58,12 +70,6 @@ All notable changes to Spotify Wallpaper. Versions follow [semantic versioning](
   Bradley Hand, Noteworthy and Chalkboard SE. See TEMPLATE_GUIDE.
 
 ### Changed
-- Windows no longer go blank: if macOS ends a web page's process (memory pressure, a crash), Home, the Builder, What's
-  New, the Quick Switcher and the live wallpaper reload themselves. The off-screen renderers for the wallpaper still no
-  longer pile up after display changes (one user had 85 screen-sized pages after a day).
-- Dry brush in Painted Cover is a real dry drag now: dozens of fine bristles that skip and run out unevenly, instead of
-  blocky faceted strokes, and the cover underneath is a soft wash instead of a grid of squares that showed between the
-  bristles.
 - What's New no longer breaks a wrapped list item into separate paragraphs.
 - Weather uses your approximate location (asked once); turn it off with "Use Weather" in the menu.
 
